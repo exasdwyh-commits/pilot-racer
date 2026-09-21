@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>动物车队 · 候选车库</title><link rel="stylesheet" href="/garage.css"><script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/examples/jsm/"}}</script></head>
+<body>
+<header><div><small>PILOT RACER / DESIGN GARAGE</small><h1>有性格的车队。</h1></div><a href="/display">返回赛道 ↗</a></header>
+<main>
+<section class="stage" aria-label="候选模型展示"><canvas id="model" tabindex="0" aria-label="3D模型，拖动旋转，左右方向键旋转，上下方向键缩放"></canvas><p id="status" role="status">正在准备车库…</p><div class="view-tools"><button id="front">正面</button><button id="rear">背面</button><button id="rotate" aria-pressed="false">自动旋转</button><button id="retry" hidden>重新加载</button></div></section>
+<aside><small>ORIGINAL CHARACTERS</small><h2 id="title">候选模型</h2><p id="description"></p><p id="spec"></p><p class="notice">独立美术候选，不是比赛选车。角色尚未完成坐姿绑定；新车型尚待拆轮、转向与实机验收。</p><nav id="roster" aria-label="选择车型与车手"></nav><div class="downloads"><a id="kart-download">下载车体 GLB</a><a id="driver-download">下载车手 GLB</a></div></aside>
+</main><footer>拖动旋转 · 滚轮缩放 · 四组资产按需加载 · 不连接比赛 WebSocket</footer>
+<script type="module" src="/garage.mjs"></script></body></html>

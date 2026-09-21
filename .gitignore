@@ -1,0 +1,14 @@
+node_modules/
+.workbuddy/
+backup/
+*.tmp.cjs
+.DS_Store
+
+# Local runtime output
+runtime/
+logs/
+*.log
+*.pid
+
+# Keep source and optimized Hyper3D assets; omit transient previews only.
+artifacts/**/renders/

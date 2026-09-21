@@ -1,0 +1,51 @@
+{
+  "created": "2026-09-19",
+  "provider": "Hyper3D Rodin Gen-2.5",
+  "status": "completed; downloaded; static candidates inspected",
+  "integration": "candidate-only; live game unchanged",
+  "credits": "Two generation requests accepted. Balance and exact charge not exposed by connector.",
+  "provenance": {
+    "references": "Original concepts generated with OpenAI imagegen for this project; no third-party source artwork supplied.",
+    "outputRights": "Hyper3D account terms apply; no CC0 license asserted."
+  },
+  "assets": [
+    {
+      "key": "kart",
+      "reference": "assets/concepts/hyper3d-2026-09-19/crimson-kart-reference.png",
+      "generation": {
+        "generation_id": "df7d8b02-9923-4602-99d5-fc195cf7e302",
+        "status": "completed",
+        "display_url": "https://hyper3d.ai/workspace/rodin/df7d8b02-9923-4602-99d5-fc195cf7e302"
+      },
+      "settings": {
+        "reference_upload_ids": [
+          "30616f1c-b85c-47bd-b0f1-fc15d2d2de13"
+        ],
+        "prompt": "One original crimson and cream arcade kart matching the reference, EMPTY cockpit, NO DRIVER or person. Four round exposed tires clearly separated from body, compact wide low body, recognizable U-shaped front LED light strip, open bucket seat, steering wheel, small rear wing, two rear nitro exhausts. Preserve reference proportions and clean large color regions. Full underside chassis, no wheel-body fusion, no floating parts, left-right symmetry, clean PBR paint rubber and metal, simple optimized topology, no logos or text. Intended for Three.js game; wheels will need separate animation pivots.",
+        "tier": "Gen-2.5-Medium",
+        "mesh_mode": "Raw",
+        "quality_override": 10000,
+        "geometry_file_format": "glb"
+      }
+    },
+    {
+      "key": "driver",
+      "reference": "assets/concepts/hyper3d-2026-09-19/crimson-driver-reference.png",
+      "generation": {
+        "generation_id": "b380f88a-35f4-4c02-9299-cd010e23c85a",
+        "status": "completed",
+        "display_url": "https://hyper3d.ai/workspace/rodin/b380f88a-35f4-4c02-9299-cd010e23c85a"
+      },
+      "settings": {
+        "reference_upload_ids": [
+          "476a0cba-30b2-451b-aa5b-66e4319a1c8f"
+        ],
+        "prompt": "One original cartoon kart racing driver matching the reference, full body symmetric neutral A-pose with straight arms about 35 degrees away from torso, hands separated from hips, feet apart, palms inward. Oversized rounded crimson helmet with cream stripe and closed dark visor, crimson and cream racing suit, cream gloves with thumbs, charcoal boots. No car, no seat, no steering wheel, no props. Keep clearly separated limbs, complete hands and feet, clean joint geometry suitable for subsequent skeleton rigging in Blender. Smooth readable low-poly shapes, PBR materials, no logos, no text.",
+        "tier": "Gen-2.5-Medium",
+        "mesh_mode": "Raw",
+        "quality_override": 6000,
+        "geometry_file_format": "glb"
+      }
+    }
+  ]
+}

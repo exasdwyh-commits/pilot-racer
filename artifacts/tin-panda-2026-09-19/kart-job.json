@@ -1,0 +1,9 @@
+{
+  "generation_id": "1a04c875-7242-4362-acb3-0d15f23a054e",
+  "status": "completed",
+  "display_url": "https://hyper3d.ai/workspace/rodin/1a04c875-7242-4362-acb3-0d15f23a054e",
+  "tier": "Gen-2.5-Medium",
+  "mesh_mode": "Raw",
+  "quality_override": 18000,
+  "prompt": "Original compact teal enamel tin-inspired toy kart as in reference. Empty cockpit, no driver. Preserve rolled cream rim, orange nose, pull-tab rear wing, four chunky black wheels with cream hubs, twin rear exhausts. Smooth rounded large panels, clean PBR surfaces, centered pivot, coherent symmetrical vehicle. No ground plane, no text, no extra objects. Wheels visibly separated from body, clean topology for browser game."
+}

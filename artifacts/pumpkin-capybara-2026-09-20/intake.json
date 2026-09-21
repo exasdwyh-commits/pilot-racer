@@ -1,0 +1,130 @@
+[
+  {
+    "asset": "kart",
+    "source_bytes": 9165892,
+    "source_dimensions_blender": [
+      1.6256486177444458,
+      1.8983389139175415,
+      1.0340882539749146
+    ],
+    "scale": 2.054427674324862,
+    "textures": [
+      {
+        "name": "texture_diffuse",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_metallic-texture_roughness",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_normal",
+        "source_size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "name": "model",
+        "triangles": 18000,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 8950,
+            "min": [
+              -0.8117807507514954,
+              -0.9499698281288147,
+              -0.5170245170593262
+            ],
+            "max": [
+              0.8138678669929504,
+              0.9483690857887268,
+              0.5170637369155884
+            ]
+          }
+        ]
+      }
+    ],
+    "rigged": false,
+    "animations": [],
+    "candidate_bytes": 1245564,
+    "candidate_dimensions_blender": [
+      3.3397774696350098,
+      3.8999998569488525,
+      2.1244595050811768
+    ],
+    "candidate_texture_max": 1024
+  },
+  {
+    "asset": "driver",
+    "source_bytes": 9162600,
+    "source_dimensions_blender": [
+      1.5225412845611572,
+      1.117941975593567,
+      1.8997468948364258
+    ],
+    "scale": 1.1843682998590883,
+    "textures": [
+      {
+        "name": "texture_diffuse.001",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_metallic-texture_roughness.001",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_normal.001",
+        "source_size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "name": "model",
+        "triangles": 10000,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 5000,
+            "min": [
+              -0.76214998960495,
+              -0.5596230030059814,
+              -0.951528787612915
+            ],
+            "max": [
+              0.7603912949562073,
+              0.5583189725875854,
+              0.9482181072235107
+            ]
+          }
+        ]
+      }
+    ],
+    "rigged": false,
+    "animations": [],
+    "candidate_bytes": 529412,
+    "candidate_dimensions_blender": [
+      1.8032495975494385,
+      1.3240549564361572,
+      2.25
+    ],
+    "candidate_texture_max": 1024
+  }
+]

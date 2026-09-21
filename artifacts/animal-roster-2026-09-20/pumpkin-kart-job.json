@@ -1,0 +1,13 @@
+{
+  "generation_id": "01e9ad47-a8d2-483a-a42b-63febccf5ae7",
+  "status": "completed",
+  "display_url": "https://hyper3d.ai/workspace/rodin/01e9ad47-a8d2-483a-a42b-63febccf5ae7",
+  "prompt": "Game-ready original toy arcade orange pumpkin buggy with broad green leaf rear spoiler. Follow reference silhouette and colors. Empty cockpit no driver. Four rubber wheels, clear front, rounded smooth body panels, clean topology and PBR materials. Centered pivot, no ground or extra objects.",
+  "geometry_file_format": "glb",
+  "mesh_mode": "Raw",
+  "quality_override": 18000,
+  "reference_upload_ids": [
+    "a4e78036-5643-4636-8072-ce01f971e9f3"
+  ],
+  "tier": "Gen-2.5-Medium"
+}

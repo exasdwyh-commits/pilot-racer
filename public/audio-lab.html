@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>音频试听工作台 · 极速等位赛</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --line:#e3e6ea; --line-strong:#cdd3da;
+    --text:#1b1f24; --muted:#5d6672; --dim:#8b949e;
+    --accent:#1f6feb; --accent-soft:#e8f0fe;
+    --good:#1a7f37; --warn:#9a6700; --bad:#cf222e;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  header{
+    position:sticky;top:0;z-index:10;background:var(--panel);
+    border-bottom:1px solid var(--line);padding:14px 22px;
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  }
+  header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px}
+  header .sub{color:var(--muted);font-size:12px}
+  header .spacer{flex:1}
+  .wrapper{max-width:1180px;margin:0 auto;padding:20px 22px 60px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px}
+  .panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:16px 18px 18px;
+  }
+  .panel h2{
+    font-size:13px;margin:0 0 4px;font-weight:650;letter-spacing:.3px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .panel .hint{color:var(--dim);font-size:11.5px;margin:0 0 14px;line-height:1.55}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{
+    font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;cursor:pointer;
+    border:1px solid var(--line-strong);background:#fff;color:var(--text);
+    transition:background .12s,border-color .12s,transform .06s;
+  }
+  button:hover{background:#f2f5f9;border-color:#b9c2cc}
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:#1a5fd0}
+  button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+  button.warn{border-color:#f0c36d;background:#fffbf0;color:var(--warn)}
+  button.wide{width:100%;justify-content:center}
+  label.field{display:block;margin:14px 0 16px}
+  label.field .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px}
+  label.field .lab b{font-family:var(--mono);color:var(--text);font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--accent);height:20px}
+  .sfxgroup{margin-bottom:12px}
+  .sfxgroup .gt{font-size:11.5px;color:var(--dim);margin-bottom:6px;letter-spacing:.4px}
+  .sfxgroup .row button{font-size:12px;padding:5px 10px}
+  .meter{
+    width:120px;height:9px;border-radius:5px;background:#eaeef2;overflow:hidden;
+    border:1px solid var(--line);position:relative;
+  }
+  .meter i{display:block;height:100%;width:0;background:var(--good);transition:width .05s linear}
+  .meter i.hot{background:var(--warn)}
+  .meter i.clip{background:var(--bad)}
+  table.diag{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11.5px}
+  table.diag td{padding:4px 0;border-bottom:1px solid #f0f2f5;vertical-align:top}
+  table.diag td:first-child{color:var(--muted);width:44%}
+  table.diag td:last-child{text-align:right;color:var(--text)}
+  .pill{
+    display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;
+    font-family:var(--mono);border:1px solid var(--line-strong);color:var(--muted);background:#fafbfc;
+  }
+  .pill.ok{border-color:#a7d8b4;background:#f0fbf3;color:var(--good)}
+  .pill.miss{border-color:#f0c36d;background:#fffbf0;color:var(--warn)}
+  .bar{height:7px;border-radius:4px;background:#eaeef2;overflow:hidden;margin-top:3px}
+  .bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .1s}
+  .layerrow{display:flex;align-items:center;gap:10px;font-size:11.5px;font-family:var(--mono)}
+  .layerrow .nm{width:78px;color:var(--muted);flex:none}
+  .layerrow .bar{flex:1;margin:0}
+  note{display:block;color:var(--dim);font-size:11.5px;margin-top:10px;line-height:1.6}
+  .banner{
+    background:#fffbf0;border:1px solid #f0c36d;color:#7a5200;border-radius:8px;
+    padding:10px 14px;font-size:12.5px;margin-bottom:16px;line-height:1.6;
+  }
+  kbd{
+    font-family:var(--mono);font-size:11px;background:#f2f4f7;border:1px solid var(--line-strong);
+    border-bottom-width:2px;border-radius:4px;padding:0 4px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>音频试听工作台 · 极速等位赛</h1>
+    <div class="sub">交互音频引擎验收入口 —— 设计依据 <code>docs/AUDIO_DESIGN.md</code></div>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill" id="ctx-state">音频未启动</span>
+  <div class="meter" title="主输出电平"><i id="lvl"></i></div>
+  <button id="btn-boot" class="primary">启动音频</button>
+  <button id="btn-mute">静音 · 关</button>
+  <button id="btn-quality">画质 · 高清</button>
+</header>
+
+<div class="wrapper">
+
+  <div class="banner" id="music-banner">
+    正在检查音乐资产…
+  </div>
+
+  <!-- 主题曲《NO MORE WAITING》——有主唱的单曲，不参与自适应音乐族的交叉淡化 -->
+  <div class="banner" id="anthem-banner">
+    <div>
+      <strong>主题曲《NO MORE WAITING》</strong>
+      <span class="hint">英文朋克摇滚 · 160 BPM · D 小调 · Drop D · 有主唱</span>
+    </div>
+    <div class="row" id="anthem-rows" style="margin-top:10px">正在检查曲目…</div>
+    <note>
+      试听用 HTMLAudioElement 是<strong>刻意的</strong>，与游戏运行时区分开：试听只要"能听"，
+      而运行时必须走 AudioBufferSourceNode 才能做到采样级精确的小节对齐（见 AUDIO_DESIGN.md 第 5 节）。
+      游戏开场版是从全曲前 32 小节<strong>裁</strong>出来的，不是二次生成 —— 省约 100 分钟算力，且与单曲是同一场演出。
+    </note>
+  </div>
+
+  <div class="grid">
+
+    <!-- 1. 自适应音乐 -->
+    <section class="panel">
+      <h2>① 自适应音乐</h2>
+      <p class="hint">
+        比赛场景下拖动张力滑杆 —— 叠加层应<strong>无感</strong>淡入，而不是"换了首歌"。
+        曲线上升快、下降慢：超车瞬间紧张感来得急、退得缓。
+      </p>
+      <div class="row">
+        <button data-scene="lobby">候场</button>
+        <button data-scene="race" class="primary">比赛</button>
+        <button data-scene="results">结算</button>
+        <button data-scene="null" class="warn">停止</button>
+      </div>
+      <label class="field">
+        <span class="lab"><span>音乐张力 tension</span><b id="tension-val">0.00</b></span>
+        <input type="range" id="tension" min="0" max="1" step="0.01" value="0" />
+      </label>
+      <div class="row">
+        <button data-tension="0.05">起跑后拉开</button>
+        <button data-tension="0.55">贴身对决</button>
+        <button data-tension="1">最后一圈</button>
+      </div>
+      <note>
+        张力权重：最后一圈 0.45 · 贴身对决 0.25 · 氮气 0.15 · 速度 0.10 · 被锁定 0.05。
+        张力 &gt; 0.5 时程序化驱动层（16 分踩镲与加花底鼓）进入，与音乐 BPM 逐拍锁定。
+      </note>
+    </section>
+
+    <!-- 2. 音效库 -->
+    <section class="panel">
+      <h2>② 音效库</h2>
+      <p class="hint">
+        全部为程序化合成，<strong>零字节资源包</strong>（手机端 ≤1MB 目标的实现方式）。
+        每次触发都有音高/增益/时长随机 —— 连点同一个按钮，不应出现两次一模一样的声音。
+      </p>
+      <div class="sfxgroup">
+        <div class="gt">比赛播报</div>
+        <div class="row">
+          <button data-route="sfx:race/countdown/tick">倒数滴答</button>
+          <button data-route="sfx:race/countdown/go">出发</button>
+          <button data-route="sfx:race/lap/final">最后一圈</button>
+          <button data-route="sfx:race/finish/line">冲线</button>
+        </div>
+      </div>
+      <div class="sfxgroup">
+        <div class="gt">攻击道具</div>
+        <div class="row">
+          <button data-route="sfx:weapon/missile/lock">飞弹锁定</button>
+          <button data-route="sfx:weapon/missile/launch">飞弹发射</button>
+          <button data-route="sfx:weapon/mine/drop">地雷布放</button>
+          <button data-route="sfx:motion/emp/blast">电磁风暴</button>
+        </div>
+      </div>
+      <div class="sfxgroup">
+        <div class="gt">防御与运动</div>
+        <div class="row">
+          <button data-route="sfx:defense/shield/deploy">护盾展开</button>
+          <button data-route="sfx:defense/shield/perfect">完美格挡</button>
+          <button data-route="sfx:motion/boost/nitro">氮气</button>
+          <button data-route="sfx:motion/tractor/pull">引力牵引</button>
+          <button data-route="sfx:motion/drift/skid">漂移咬地</button>
+        </div>
+      </div>
+      <div class="sfxgroup">
+        <div class="gt">命中 / 拾取 / 名次</div>
+        <div class="row">
+          <button data-route="sfx:impact/hit/heavy">重击命中</button>
+          <button data-route="sfx:pickup/box/open">开箱拾取</button>
+          <button data-route="sfx:race/overtake/up">超越前车</button>
+          <button data-route="sfx:race/overtake/down">被超越</button>
+          <button data-route="sfx:ui/button/click">按钮</button>
+        </div>
+      </div>
+      <note>完美格挡刻意比普通护盾更亮、泛音更多 —— 否则玩家学不会去练它。</note>
+    </section>
+
+    <!-- 3. 空间音频 -->
+    <section class="panel">
+      <h2>③ 大屏空间音频</h2>
+      <p class="hint">
+        大屏是导播视角，其他车的声音必须带位置 —— 这是"观众能看懂谁在打谁"的关键。
+        拖动滑块改变声源位置，再点触发：应能听出左右声像与远近（远处会变闷）。
+      </p>
+      <label class="field">
+        <span class="lab"><span>横向 x（米）</span><b id="posx-val">0</b></span>
+        <input type="range" id="posx" min="-40" max="40" step="1" value="18" />
+      </label>
+      <label class="field">
+        <span class="lab"><span>纵向 z（米，距离）</span><b id="posz-val">20</b></span>
+        <input type="range" id="posz" min="0" max="90" step="1" value="20" />
+      </label>
+      <div class="row">
+        <button data-route="sfx:impact/hit/heavy" data-spatial="1" class="primary">在该位置触发命中音</button>
+        <button data-route="sfx:weapon/missile/launch" data-spatial="1">在该位置发射飞弹</button>
+      </div>
+      <note>最小距离 8m 满音量，90m 外不可闻；远处额外低通到 1.2kHz，模拟空气吸收。低画质档退化为纯 2D 以省 CPU。</note>
+    </section>
+
+    <!-- 4. 连续层 -->
+    <section class="panel">
+      <h2>④ 连续层（引擎 / 风 / 胎噪）</h2>
+      <p class="hint">
+        连续层只在比赛场景出声 —— 候场时引擎必须完全静音，否则等位区一直响着引擎会让店员发疯。
+      </p>
+      <label class="field">
+        <span class="lab"><span>速度</span><b id="speed-val">0.00</b></span>
+        <input type="range" id="speed" min="0" max="1" step="0.01" value="0" />
+      </label>
+      <div class="row">
+        <button id="btn-boost">氮气 · 关</button>
+        <button id="btn-drift">漂移 · 关</button>
+      </div>
+      <note>引擎用双振荡器合成而不是采样：不占资源包，且转速可连续变化。风噪走平方律，低速几乎无声。</note>
+    </section>
+
+    <!-- 5. 诊断 -->
+    <section class="panel">
+      <h2>⑤ 诊断</h2>
+      <p class="hint">验收要看的就是这几项：声部数不能超上限、被抢占数应该增长、噪声缓冲数必须恒为 4。</p>
+      <table class="diag" id="diag"></table>
+      <div id="layers" style="margin-top:12px"></div>
+    </section>
+
+    <!-- 6. 压力测试 -->
+    <section class="panel">
+      <h2>⑥ 压力测试</h2>
+      <p class="hint">
+        模拟 8 台车在同一帧全部开火 —— 这是最容易削顶的场景。观察主输出电平不应长时间贴顶，
+        声部数不应超过上限。
+      </p>
+      <div class="row">
+        <button id="btn-stress-8" class="primary">同帧 8 车开火</button>
+        <button id="btn-stress-500">连打 500 次</button>
+      </div>
+      <note>
+        两级限幅：音效限幅器管住同帧爆发的峰值，母带限幅器管住总线相加后的天花板。
+        分开两次才能在音效爆音时不把音乐一起压扁。
+      </note>
+    </section>
+
+  </div>
+</div>
+
+<script type="module">
+import { audio, SFX_ROUTES, MUSIC_LIBRARY, QUALITY_TIERS } from './audio-engine.mjs';
+
+const $ = (id) => document.getElementById(id);
+let muted = false;
+
+// --- 启动 ------------------------------------------------------------------
+$('btn-boot').onclick = async () => {
+  audio.init();
+  $('ctx-state').textContent = '音频已启动';
+  $('ctx-state').className = 'pill ok';
+  const res = await audio.loadMusic();
+  renderMusicStatus(res);
+  audio.setScene('lobby');
+};
+// 首次点击页面任意处也启动，避免用户忘了点按钮
+window.addEventListener('pointerdown', () => { if (!audio.ctx) $('btn-boot').click(); }, { once: true });
+
+// --- 音乐状态横幅 ----------------------------------------------------------
+function renderMusicStatus(res) {
+  const el = $('music-banner');
+  if (!res) return;
+  const parts = Object.entries(MUSIC_LIBRARY).map(([key, spec]) => {
+    const state = res[key];
+    if (state === 'ok' || state === 'cached') {
+      const bar = (60 / spec.bpm) * 4 * spec.bars;
+      return `<span class="pill ok">${key} ✓ ${bar.toFixed(2)}s</span>`;
+    }
+    if (typeof state === 'string' && state.startsWith('fallback:')) {
+      return `<span class="pill miss">${key} ⚠ 回退 ${state.slice(9)}</span>`;
+    }
+    return `<span class="pill miss">${key} ✗ 缺 ${spec.file}</span>`;
+  });
+  const missing = Object.values(res).filter((v) => v === 'missing').length;
+  const fellBack = Object.values(res).filter((v) => typeof v === 'string' && v.startsWith('fallback:'));
+  if (fellBack.length) {
+    el.innerHTML = `音乐资产自检：${parts.join(' ')}<br>
+      <strong>有层正在使用回退文件</strong>（仓库既有曲目，不满足 BPM/长度锁定，只能试听不能作为最终交付）。
+      生成完成后跑 <code>scripts/postprocess_bgm.py --all</code> 落位正式曲目。`;
+  } else if (missing) {
+    el.innerHTML = `音乐资产自检：${parts.join(' ')}<br>
+       缺文件的层会静默跳过，程序化驱动层不受影响 —— 这是刻意的降级设计。
+       补音乐请先跑 <code>scripts/submit_bgm_tracks.py --submit</code>，再跑 <code>scripts/postprocess_bgm.py</code>。`;
+  } else {
+    el.innerHTML = `音乐资产自检：${parts.join(' ')} — 全部就绪，自适应交叉淡化可用。`;
+  }
+}
+
+// --- 主题曲试听 ------------------------------------------------------------
+// 三轨互斥播放；缺文件由 audio 元素的 error 事件自然暴露，不做多余的探测请求。
+const ANTHEM_CANDIDATES = [
+  { file: 'draft/no-more-waiting-30s.mp3', label: '音色验证片段', note: '30s · 试听稿' },
+  { file: 'no-more-waiting-48s.mp3', label: '游戏开场版', note: '48s · 32 小节' },
+  { file: 'no-more-waiting.mp3', label: '完整单曲', note: '105s · 70 小节' },
+];
+
+function renderAnthem() {
+  const host = $('anthem-rows');
+  host.textContent = '';
+  for (const c of ANTHEM_CANDIDATES) {
+    const wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 10px 8px 0';
+
+    const btn = document.createElement('button');
+    btn.textContent = `▶ ${c.label}`;
+    btn.disabled = true;
+
+    const player = document.createElement('audio');
+    player.controls = true;
+    // 只取文件头：缺文件会立刻触发 error，不会白白下载整首（服务器不支持 HEAD）
+    player.preload = 'metadata';
+    player.src = `/audio/${c.file}`;
+    player.style.cssText = 'height:32px';
+
+    player.addEventListener('loadedmetadata', () => {
+      btn.disabled = false;
+      btn.textContent = `▶ ${c.label} · ${player.duration.toFixed(1)}s`;
+    }, { once: true });
+
+    player.addEventListener('error', () => {
+      const pill = document.createElement('span');
+      pill.className = 'pill miss';
+      pill.textContent = `${c.label} · 未生成`;
+      pill.title = c.note;
+      wrap.replaceChildren(pill);
+    }, { once: true });
+
+    btn.onclick = () => {
+      document.querySelectorAll('#anthem-rows audio').forEach((a) => {
+        if (a !== player) a.pause();
+      });
+      player.play().catch(() => {});
+    };
+
+    wrap.append(btn, player);
+    host.append(wrap);
+  }
+}
+renderAnthem();
+
+// --- 场景 / 张力 -----------------------------------------------------------
+document.querySelectorAll('[data-scene]').forEach((b) => {
+  b.onclick = () => {
+    audio.init();
+    const s = b.dataset.scene === 'null' ? null : b.dataset.scene;
+    audio.setScene(s);
+    document.querySelectorAll('[data-scene]').forEach((x) => x.classList.toggle('on', x === b));
+  };
+});
+$('tension').oninput = (e) => {
+  const v = Number(e.target.value);
+  audio.setTension(v);
+  $('tension-val').textContent = v.toFixed(2);
+};
+document.querySelectorAll('[data-tension]').forEach((b) => {
+  b.onclick = () => {
+    const v = Number(b.dataset.tension);
+    $('tension').value = String(v);
+    audio.setTension(v);
+    $('tension-val').textContent = v.toFixed(2);
+  };
+});
+
+// --- 音效触发 --------------------------------------------------------------
+function currentPos() {
+  return { x: Number($('posx').value), z: Number($('posz').value) };
+}
+document.querySelectorAll('[data-route]').forEach((b) => {
+  b.onclick = () => {
+    audio.init();
+    const opts = b.dataset.spatial ? { position: currentPos() } : {};
+    audio.playRoute(b.dataset.route, opts);
+  };
+});
+$('posx').oninput = (e) => { $('posx-val').textContent = e.target.value; };
+$('posz').oninput = (e) => { $('posz-val').textContent = e.target.value; };
+
+// --- 连续层 ----------------------------------------------------------------
+$('speed').oninput = (e) => {
+  $('speed-val').textContent = Number(e.target.value).toFixed(2);
+  audio.setWind(Number(e.target.value), $('btn-boost').classList.contains('on'));
+};
+$('btn-boost').onclick = () => {
+  const on = !$('btn-boost').classList.contains('on');
+  $('btn-boost').classList.toggle('on', on);
+  $('btn-boost').textContent = `氮气 · ${on ? '开' : '关'}`;
+  audio.setWind(Number($('speed').value), on);
+};
+$('btn-drift').onclick = () => {
+  const on = !$('btn-drift').classList.contains('on');
+  $('btn-drift').classList.toggle('on', on);
+  $('btn-drift').textContent = `漂移 · ${on ? '开' : '关'}`;
+  audio.setDrifting(on);
+};
+
+// --- 静音 / 画质 -----------------------------------------------------------
+$('btn-mute').onclick = () => {
+  audio.init();
+  muted = !audio.toggle();
+  audio.setQuality(audio.quality); // 触发一次收声部
+  $('btn-mute').textContent = `静音 · ${muted ? '开' : '关'}`;
+  $('btn-mute').classList.toggle('on', muted);
+};
+$('btn-quality').onclick = () => {
+  const next = audio.quality === 'high' ? 'low' : 'high';
+  audio.setQuality(next);
+  $('btn-quality').textContent = `画质 · ${next === 'high' ? '高清' : '节能'}`;
+  $('btn-quality').classList.toggle('on', next === 'low');
+};
+
+// --- 压力测试 --------------------------------------------------------------
+const ATTACK_ROUTES = [
+  'sfx:impact/hit/heavy', 'sfx:weapon/missile/launch', 'sfx:motion/emp/blast',
+  'sfx:weapon/mine/drop', 'sfx:motion/boost/nitro', 'sfx:defense/shield/deploy',
+];
+$('btn-stress-8').onclick = () => {
+  audio.init();
+  for (let i = 0; i < 8; i++) {
+    audio.playRoute(ATTACK_ROUTES[i % ATTACK_ROUTES.length], {
+      position: { x: Math.cos(i) * 25, z: Math.sin(i) * 25 },
+    });
+  }
+};
+$('btn-stress-500').onclick = () => {
+  audio.init();
+  let n = 0;
+  const t = setInterval(() => {
+    audio.playRoute(ATTACK_ROUTES[n % ATTACK_ROUTES.length], { position: { x: (n % 7) * 6, z: 20 } });
+    if (++n >= 500) clearInterval(t);
+  }, 4);
+};
+
+// --- HUD -------------------------------------------------------------------
+const DIAG_KEYS = [
+  ['enabled', '启用'], ['quality', '画质档'], ['maxVoices', '声部上限'],
+  ['activeVoices', '活跃声部'], ['stolen', '被抢占次数'], ['triggers', '累计触发'],
+  ['scene', '当前场景'], ['tension', '张力'], ['noiseBuffers', '噪声缓冲数（必须恒为 4）'],
+  ['ducked', '音乐闪避中'], ['level', '主输出电平'],
+];
+function renderHud() {
+  const d = audio.diagnostics();
+  $('diag').innerHTML = DIAG_KEYS.map(([k, label]) => {
+    let v = d[k];
+    if (typeof v === 'boolean') v = v ? '是' : '否';
+    const bad = (k === 'activeVoices' && d.activeVoices > d.maxVoices) ||
+      (k === 'noiseBuffers' && d.noiseBuffers !== 4);
+    return `<tr><td>${label}</td><td style="${bad ? 'color:var(--bad);font-weight:700' : ''}">${v}</td></tr>`;
+  }).join('');
+
+  $('layers').innerHTML = Object.entries(MUSIC_LIBRARY).map(([key, spec]) => {
+    const g = d.layers[key] ?? 0;
+    const pct = Math.round(Math.min(1, g / Math.max(0.001, spec.gain)) * 100);
+    return `<div class="layerrow"><span class="nm">${key}</span>
+      <span class="bar"><i style="width:${pct}%"></i></span>
+      <span style="width:52px;text-align:right;color:var(--muted)">${g.toFixed(2)}</span></div>`;
+  }).join('');
+}
+function renderLevel() {
+  const lv = audio.getLevel();
+  const bar = $('lvl');
+  bar.style.width = `${Math.min(100, lv * 130)}%`;
+  bar.className = lv > 0.98 ? 'clip' : lv > 0.8 ? 'hot' : '';
+  requestAnimationFrame(renderLevel);
+}
+setInterval(renderHud, 200);
+requestAnimationFrame(renderLevel);
+renderHud();
+renderMusicStatus(null);
+
+// 启动时把音乐检查结果也打出来，便于在没有服务器时排查
+$('music-banner').textContent = '点「启动音频」后检查音乐资产（未启动时不会发起加载）。';
+
+void SFX_ROUTES;
+void QUALITY_TIERS;
+</script>
+</body>
+</html>

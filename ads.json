@@ -1,0 +1,188 @@
+{
+  "_readme": "赛道广告配置。改完保存即生效（大厅/等候/结算界面约5秒内刷新，比赛中不刷新）。creatives 广告创意；slots 槽位：kind 不填为普通牌（at 圈长比例0-1，side 1右侧/-1左侧，off 距路缘米数默认7，w 牌宽默认7，double 外圈双面），kind=gantry 为出发横幅（全场最显眼，只取第一个）。商业真品牌投放需品牌方授权。",
+  "creatives": [
+    {
+      "bg": "#e1251b",
+      "fg": "#ffe23f",
+      "sub": "#ffffff",
+      "title": "王老吉",
+      "line": "怕上火 · 喝王老吉"
+    },
+    {
+      "bg": "#16181d",
+      "fg": "#ffffff",
+      "sub": "#ff3b30",
+      "title": "百 威",
+      "line": "Budweiser · 敬真我"
+    },
+    {
+      "bg": "#e61a27",
+      "fg": "#ffffff",
+      "sub": "#ffffff",
+      "title": "可口可乐",
+      "line": "冰爽畅饮"
+    },
+    {
+      "bg": "#c5f574",
+      "fg": "#153332",
+      "sub": "#153332",
+      "title": "等位不无聊",
+      "line": "扫码即玩 · 赢下单优惠"
+    },
+    {
+      "bg": "#fb8500",
+      "fg": "#ffffff",
+      "sub": "#023047",
+      "title": "本店招牌",
+      "line": "二楼包间 · 免排队"
+    }
+  ],
+  "slots": [
+    {
+      "kind": "gantry",
+      "creative": 0
+    },
+    {
+      "track": "*",
+      "at": 0.07,
+      "side": 1,
+      "creative": 0,
+      "w": 7
+    },
+    {
+      "track": "*",
+      "at": 0.14,
+      "side": -1,
+      "creative": 3,
+      "w": 5
+    },
+    {
+      "track": "*",
+      "at": 0.21,
+      "side": 1,
+      "creative": 1,
+      "w": 7
+    },
+    {
+      "track": "*",
+      "at": 0.3,
+      "side": -1,
+      "creative": 4,
+      "w": 5
+    },
+    {
+      "track": "*",
+      "at": 0.4,
+      "side": 1,
+      "creative": 2,
+      "w": 7
+    },
+    {
+      "track": "*",
+      "at": 0.52,
+      "side": -1,
+      "creative": 3,
+      "w": 5
+    },
+    {
+      "track": "*",
+      "at": 0.6,
+      "side": 1,
+      "creative": 0,
+      "w": 7
+    },
+    {
+      "track": "*",
+      "at": 0.7,
+      "side": -1,
+      "creative": 1,
+      "w": 5
+    },
+    {
+      "track": "*",
+      "at": 0.8,
+      "side": 1,
+      "creative": 2,
+      "w": 7
+    },
+    {
+      "track": "*",
+      "at": 0.9,
+      "side": -1,
+      "creative": 4,
+      "w": 5
+    },
+    {
+      "track": "*",
+      "at": 0.04,
+      "side": -1,
+      "creative": 2,
+      "w": 8,
+      "off": 15,
+      "double": true
+    },
+    {
+      "track": "*",
+      "at": 0.17,
+      "side": 1,
+      "creative": 3,
+      "w": 8,
+      "off": 15,
+      "double": true
+    },
+    {
+      "track": "*",
+      "at": 0.35,
+      "side": -1,
+      "creative": 1,
+      "w": 8,
+      "off": 15,
+      "double": true
+    },
+    {
+      "track": "*",
+      "at": 0.46,
+      "side": 1,
+      "creative": 4,
+      "w": 8,
+      "off": 15,
+      "double": true
+    },
+    {
+      "track": "*",
+      "at": 0.57,
+      "side": -1,
+      "creative": 0,
+      "w": 8,
+      "off": 15,
+      "double": true
+    },
+    {
+      "track": "*",
+      "at": 0.66,
+      "side": 1,
+      "creative": 2,
+      "w": 8,
+      "off": 15,
+      "double": true
+    },
+    {
+      "track": "*",
+      "at": 0.83,
+      "side": -1,
+      "creative": 3,
+      "w": 8,
+      "off": 15,
+      "double": true
+    },
+    {
+      "track": "*",
+      "at": 0.95,
+      "side": 1,
+      "creative": 1,
+      "w": 8,
+      "off": 15,
+      "double": true
+    }
+  ]
+}

@@ -1,0 +1,335 @@
+[
+  {
+    "asset": "kart",
+    "source_bytes": 8004136,
+    "source_dimensions_blender": [
+      1.2412784099578857,
+      1.895685076713562,
+      0.6240633130073547
+    ],
+    "scale": 2.0573037409574386,
+    "textures": [
+      {
+        "name": "texture_diffuse",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_normal",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_metallic-texture_roughness",
+        "source_size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "name": "model",
+        "triangles": 10000,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 4788,
+            "min": [
+              -0.6209283471107483,
+              -0.9463887214660645,
+              -0.3127819895744324
+            ],
+            "max": [
+              0.6203500628471375,
+              0.9492963552474976,
+              0.31128132343292236
+            ]
+          }
+        ]
+      }
+    ],
+    "rigged": false,
+    "animations": [],
+    "candidate_bytes": 917044,
+    "candidate_dimensions_blender": [
+      2.5536866188049316,
+      3.8999998569488525,
+      1.2838877439498901
+    ],
+    "candidate_texture_max": 1024
+  },
+  {
+    "asset": "driver",
+    "source_bytes": 7654628,
+    "source_dimensions_blender": [
+      1.211633563041687,
+      0.639238715171814,
+      1.899887204170227
+    ],
+    "scale": 1.1842808325995775,
+    "textures": [
+      {
+        "name": "texture_diffuse.001",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_normal.001",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_metallic-texture_roughness.001",
+        "source_size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "name": "model",
+        "triangles": 6000,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 3002,
+            "min": [
+              -0.6052712798118591,
+              -0.3175700604915619,
+              -0.9488469362258911
+            ],
+            "max": [
+              0.6063622832298279,
+              0.3216686546802521,
+              0.9510402679443359
+            ]
+          }
+        ]
+      }
+    ],
+    "rigged": false,
+    "animations": [],
+    "candidate_bytes": 500624,
+    "candidate_dimensions_blender": [
+      1.434914469718933,
+      0.7570381760597229,
+      2.25
+    ],
+    "candidate_texture_max": 1024
+  },
+  {
+    "asset": "kart-parts",
+    "source_bytes": 7739912,
+    "source_dimensions_blender": [
+      1.2404918670654297,
+      1.8926243782043457,
+      0.6278626918792725
+    ],
+    "scale": 2.060630754265239,
+    "textures": [
+      {
+        "name": "texture_diffuse.002",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_metallic-texture_roughness.002",
+        "source_size": [
+          2048,
+          2048
+        ]
+      },
+      {
+        "name": "texture_normal.002",
+        "source_size": [
+          2048,
+          2048
+        ]
+      }
+    ],
+    "meshes": [
+      {
+        "name": "root.0",
+        "triangles": 4558,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 2143,
+            "min": [
+              -0.4849224388599396,
+              -0.9449306130409241,
+              -0.23410587012767792
+            ],
+            "max": [
+              0.48654356598854065,
+              0.8742468953132629,
+              0.264118492603302
+            ]
+          }
+        ]
+      },
+      {
+        "name": "root.2",
+        "triangles": 1192,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 582,
+            "min": [
+              -0.6188662052154541,
+              -0.7101089954376221,
+              -0.308228075504303
+            ],
+            "max": [
+              -0.4212900400161743,
+              -0.27739906311035156,
+              0.09792265295982361
+            ]
+          }
+        ]
+      },
+      {
+        "name": "root.3",
+        "triangles": 1238,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 607,
+            "min": [
+              0.4075801372528076,
+              0.3373231887817383,
+              -0.3127964437007904
+            ],
+            "max": [
+              0.6203212141990662,
+              0.7503809928894043,
+              0.09149891138076782
+            ]
+          }
+        ]
+      },
+      {
+        "name": "root.1",
+        "triangles": 1194,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 583,
+            "min": [
+              0.42227911949157715,
+              -0.7102310657501221,
+              -0.30845415592193604
+            ],
+            "max": [
+              0.6194398403167725,
+              -0.2770702838897705,
+              0.09835934638977051
+            ]
+          }
+        ]
+      },
+      {
+        "name": "root.4",
+        "triangles": 1222,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 599,
+            "min": [
+              -0.6201705932617188,
+              0.33738183975219727,
+              -0.314277708530426
+            ],
+            "max": [
+              -0.4072028398513794,
+              0.7480721473693848,
+              0.09365057945251465
+            ]
+          }
+        ]
+      },
+      {
+        "name": "root.5",
+        "triangles": 184,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 94,
+            "min": [
+              -0.35377800464630127,
+              0.677401065826416,
+              0.1901090443134308
+            ],
+            "max": [
+              0.3531706929206848,
+              0.9476938247680664,
+              0.31358498334884644
+            ]
+          }
+        ]
+      },
+      {
+        "name": "root.6",
+        "triangles": 204,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 102,
+            "min": [
+              0.1967470645904541,
+              0.6280422210693359,
+              -0.007620419841259718
+            ],
+            "max": [
+              0.33889734745025635,
+              0.8934078216552734,
+              0.1613566279411316
+            ]
+          }
+        ]
+      },
+      {
+        "name": "root.7",
+        "triangles": 208,
+        "materials": 1,
+        "welded_islands": [
+          {
+            "vertices": 104,
+            "min": [
+              -0.3398146629333496,
+              0.6280899047851562,
+              -0.007558418903499842
+            ],
+            "max": [
+              -0.19180148839950562,
+              0.8941774368286133,
+              0.15954677760601044
+            ]
+          }
+        ]
+      }
+    ],
+    "rigged": false,
+    "animations": [],
+    "articulation": "Four wheel-center pivots, two front steering groups, wing pivot; no baked animation.",
+    "candidate_bytes": 911604,
+    "candidate_dimensions_blender": [
+      2.5561957359313965,
+      3.9000000953674316,
+      1.2937932014465332
+    ],
+    "candidate_texture_max": 1024
+  }
+]

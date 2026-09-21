@@ -1,0 +1,71 @@
+{
+  "id": "pilot-racer",
+  "name": "极速等位赛",
+  "subtitle": "海湾环线",
+  "genre": "竞速",
+  "version": "0.1.0",
+  "summary": "手机第一人称驾驶 + 大屏导播自动追踪的多人竞速。顾客扫码即玩，电脑端跑唯一权威模拟。",
+  "players": { "min": 1, "max": 8 },
+  "runtime": {
+    "command": ["node", "server.mjs"],
+    "cwd": ".",
+    "port": 9010,
+    "host": "0.0.0.0",
+    "healthPath": "/info",
+    "healthProtocol": "pilot-racer/1",
+    "startTimeoutMs": 8000
+  },
+  "settings": [
+    {
+      "key": "roomCode",
+      "label": "固定房间码",
+      "type": "text",
+      "env": "ROOM_CODE",
+      "wired": true,
+      "default": "BAY888",
+      "description": "手机扫码加入时使用的房间码。平台重启或换店都不用换码。"
+    },
+    {
+      "key": "trackId",
+      "label": "默认赛道",
+      "type": "enum",
+      "env": "TRACK",
+      "wired": true,
+      "default": "bay",
+      "description": "开局赛道。大屏端仍可在候场时手动切换。",
+      "options": [
+        { "value": "bay", "label": "海湾环线" },
+        { "value": "ridge", "label": "山脊赛道" }
+      ]
+    },
+    {
+      "key": "laps",
+      "label": "单局圈数",
+      "type": "number",
+      "env": "LAPS",
+      "wired": true,
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 3,
+      "description": "一圈的时间越短，圈数就该越多。"
+    },
+    {
+      "key": "seconds",
+      "label": "单局时长上限（秒）",
+      "type": "number",
+      "env": "RACE_SECONDS",
+      "wired": true,
+      "min": 30,
+      "max": 300,
+      "step": 10,
+      "default": 90,
+      "description": "到点即结算，避免顾客等位期间一局拖太久。"
+    }
+  ],
+  "links": [
+    { "label": "大屏导播", "path": "/display" },
+    { "label": "手机加入页", "path": "/" }
+  ],
+  "notes": "ROOM_CODE、TRACK、LAPS、RACE_SECONDS 已由 server.mjs 读取并传入权威模拟。大屏仍可在候场阶段手动切换赛道；门店配置在下一次启动进程时生效。"
+}

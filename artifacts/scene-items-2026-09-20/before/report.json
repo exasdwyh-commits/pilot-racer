@@ -1,0 +1,64 @@
+{
+  "run": "before",
+  "fixture": "authoritative racing snapshot; stationary cars; desktop Chrome",
+  "metrics": [
+    {
+      "track": "bay",
+      "quality": "high",
+      "perf": {
+        "fps": 60,
+        "calls": 3366,
+        "tris": 479356,
+        "geos": 648,
+        "tex": 48
+      },
+      "buildError": null
+    },
+    {
+      "track": "bay",
+      "quality": "low",
+      "perf": {
+        "fps": 60,
+        "calls": 1314,
+        "tris": 103420,
+        "geos": 648,
+        "tex": 48
+      },
+      "buildError": null
+    },
+    {
+      "track": "ridge",
+      "quality": "high",
+      "perf": {
+        "fps": 60,
+        "calls": 2736,
+        "tris": 446008,
+        "geos": 628,
+        "tex": 43
+      },
+      "buildError": null
+    },
+    {
+      "track": "ridge",
+      "quality": "low",
+      "perf": {
+        "fps": 60,
+        "calls": 675,
+        "tris": 69904,
+        "geos": 628,
+        "tex": 43
+      },
+      "buildError": null
+    }
+  ],
+  "errors": [
+    {
+      "source": "network",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "timestamp": 1789864905590.03,
+      "url": "http://127.0.0.1:53662/favicon.ico",
+      "networkRequestId": "92458.27"
+    }
+  ]
+}

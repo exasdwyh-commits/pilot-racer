@@ -1,0 +1,37 @@
+{
+ "generator": "MiniMax-Music-3 (music3 workbench, ComfyUI)",
+ "processed_by": "scripts/postprocess_bgm.py",
+ "parameters_source": "scripts/submit_bgm_tracks.py",
+ "sample_rate": 48000,
+ "target_headroom_dbfs": -1.01,
+ "tracks": [
+  {
+   "key": "race",
+   "name": "海湾环线·香水狂飙 (Lança Perfume 极速纯乐 160BPM 48s)",
+   "status": "ok",
+   "source": "/Users/exasdwyh/ComfyUI-Shared/output/audio/海湾环线_香水狂飙__Lança_Perfume_极速纯乐_160BPM_48s_19800816_00001.mp3",
+   "dest": "/Users/exasdwyh/Documents/VScode/WTGame/repo/pilot-racer/public/audio/bgm-race.mp3",
+   "backup": "/Users/exasdwyh/Documents/VScode/WTGame/repo/pilot-racer/public/audio/bgm-race.bak.mp3",
+   "bpm": 160,
+   "bars": 32,
+   "loop": true,
+   "raw_sec": 47.996,
+   "target_sec": 48.0,
+   "final_sec": 48.0,
+   "bar_aligned": true,
+   "peak_raw": 0.9228,
+   "gain_applied": 0.9644,
+   "peak_decoded": 0.8757,
+   "peak_mono_sum": 0.8475,
+   "encode_passes": 1,
+   "ceiling_ok": true,
+   "mono_compatible": true,
+   "seam_wrap_before": 0.035533,
+   "seam_ratio_before": 2.068,
+   "seam_wrap_after": 0.010976,
+   "seam_ratio_after": 0.639,
+   "seam_ok": true,
+   "seam_improved": true
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+{
+  "validate": {
+    "song_id": 49,
+    "run_ids": [
+      91
+    ],
+    "name": "不再等待·音色验证 (英文朋克摇滚 160BPM 30s)",
+    "duration": 30.0,
+    "bars": 20,
+    "bpm": 160,
+    "key": "D 小调",
+    "seed": 1602028
+  }
+}

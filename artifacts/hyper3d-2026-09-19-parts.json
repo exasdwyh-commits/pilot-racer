@@ -1,0 +1,19 @@
+{
+  "created": "2026-09-19",
+  "provider": "Hyper3D BANG",
+  "source": "df7d8b02-9923-4602-99d5-fc195cf7e302",
+  "reason": "Original kart is one connected mesh; assess separate wheels before live integration.",
+  "settings": {
+    "geometry_file_format": "glb",
+    "resolution": "Basic",
+    "strength": 6
+  },
+  "generation": {
+    "generation_id": "545c027a-d4e8-47ab-a97f-d08cd0cad3ce",
+    "status": "completed",
+    "display_url": "https://hyper3d.ai/workspace/rodin/545c027a-d4e8-47ab-a97f-d08cd0cad3ce"
+  },
+  "status": "completed; downloaded; 8 parts inspected; wheel pivots normalized; candidate only",
+  "candidate": "assets/models/hyper3d-2026-09-19/crimson-kart-parts-candidate.glb",
+  "review": "artifacts/hyper3d-2026-09-19/REVIEW.md"
+}

@@ -1,0 +1,22 @@
+{
+  "validate": {
+    "title": "NO MORE WAITING",
+    "mode": "validate",
+    "bpm": 160,
+    "key": "D 小调",
+    "seed": 1602028,
+    "source": "/Users/exasdwyh/ComfyUI-Shared/output/audio/不再等待_音色验证__英文朋克摇滚_160BPM_30s__1602028_00001.mp3",
+    "raw_sec": 29.989,
+    "target_sec": 30.0,
+    "peak_raw": 0.8671,
+    "gain_applied": 1.0264,
+    "outputs": [
+      {
+        "role": "试听稿",
+        "path": "/Users/exasdwyh/Documents/VScode/WTGame/repo/pilot-racer/public/audio/draft/no-more-waiting-30s.mp3",
+        "sec": 29.989,
+        "lufs": null
+      }
+    ]
+  }
+}

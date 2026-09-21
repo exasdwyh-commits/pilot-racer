@@ -1,0 +1,6 @@
+[
+  {"id":"pumpkin","name":"南瓜探险队","color":"#e69b38","description":"慢悠悠的水豚，开一辆叶片尾翼的南瓜越野车。圆胖车体与橙绿配色，强调稳重和亲和力。","kart":"/assets/models/pumpkin-capybara-2026-09-20/pumpkin-capybara-kart-candidate.glb","driver":"/assets/models/pumpkin-capybara-2026-09-20/pumpkin-capybara-driver-candidate.glb"},
+  {"id":"shell","name":"珍珠快游队","color":"#bfa7de","description":"六角恐龙与贝壳流线车。珊瑚色外鳃、薄荷轮毂与扇贝尾翼，共同构成轻快的海洋轮廓。","kart":"/assets/models/shell-axolotl-2026-09-20/shell-axolotl-kart-candidate.glb","driver":"/assets/models/shell-axolotl-2026-09-20/shell-axolotl-driver-candidate.glb"},
+  {"id":"panda","name":"罐头快递队","color":"#51b2b4","description":"小熊猫快递员搭配拉环罐头车。青绿珐琅、奶油包边和大环纹尾巴，一眼就能认出。","kart":"/assets/models/tin-panda-2026-09-19/tin-panda-kart-candidate.glb","driver":"/assets/models/tin-panda-2026-09-19/tin-panda-driver-candidate.glb"},
+  {"id":"crimson","name":"赤潮原型队","color":"#d95b4c","description":"保留的红白传统赛车方案。车体已有独立轮轴，但驾驶员仍是待绑定的站姿候选。","kart":"/assets/models/hyper3d-2026-09-19/crimson-kart-parts-candidate.glb","driver":"/assets/models/hyper3d-2026-09-19/crimson-driver-candidate.glb"}
+]

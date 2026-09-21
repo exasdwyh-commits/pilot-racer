@@ -1,0 +1,13 @@
+{
+  "generation_id": "d3615163-d678-48f3-896a-8d0b119e2113",
+  "status": "completed",
+  "display_url": "https://hyper3d.ai/workspace/rodin/d3615163-d678-48f3-896a-8d0b119e2113",
+  "prompt": "Game-ready original upright ivory axolotl explorer with six coral petal gills and mint vest. Follow reference. Full body symmetric A pose arms away from body feet separated. Smooth sculpted vinyl toy surfaces, fur appearance in texture only, no hair geometry. Large clear face, no props, no floor. Clean topology and PBR materials.",
+  "geometry_file_format": "glb",
+  "mesh_mode": "Raw",
+  "quality_override": 10000,
+  "reference_upload_ids": [
+    "a478bba3-0420-4385-adfc-4dc82b1c1a5d"
+  ],
+  "tier": "Gen-2.5-Medium"
+}

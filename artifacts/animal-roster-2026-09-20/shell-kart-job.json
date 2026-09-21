@@ -1,0 +1,13 @@
+{
+  "generation_id": "d33711f9-90e5-484e-8ef4-0b42e2b35701",
+  "status": "completed",
+  "display_url": "https://hyper3d.ai/workspace/rodin/d33711f9-90e5-484e-8ef4-0b42e2b35701",
+  "prompt": "Game-ready original toy arcade lilac shell buggy with mint wheels and scalloped rear spoiler. Follow reference silhouette and colors. Empty cockpit no driver. Four rubber wheels, clear front, rounded smooth body panels, clean topology and PBR materials. Centered pivot, no ground or extra objects.",
+  "geometry_file_format": "glb",
+  "mesh_mode": "Raw",
+  "quality_override": 18000,
+  "reference_upload_ids": [
+    "756ecdb1-2482-44d1-96ce-7aed521f2797"
+  ],
+  "tier": "Gen-2.5-Medium"
+}
