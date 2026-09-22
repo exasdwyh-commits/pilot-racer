@@ -4,8 +4,8 @@ backup/
 *.tmp.cjs
 .DS_Store
 
-# Local runtime output
-runtime/
+# Local process runtime output
+/runtime/
 logs/
 *.log
 *.pid
