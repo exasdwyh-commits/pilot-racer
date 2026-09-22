@@ -72,7 +72,7 @@ export async function createPilot({host='0.0.0.0',port=9010,manual=false}={}) {
         return;
       }
       if(req.method!=='GET'){res.writeHead(405);res.end();return;}
-      if(url.pathname==='/info') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify({code,join:advertised,capacity:8,protocol:'pilot-racer/1'}));return;}
+      if(url.pathname==='/info') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify({code,join:advertised,capacity:8,protocol:'pilot-racer/1',trackId:race.trackId,laps:race.laps,seconds:race.seconds,phase:race.phase}));return;}
       if(url.pathname==='/api/ads') {
         res.setHeader('Content-Type','application/json');
         res.setHeader('Cache-Control','no-store');
@@ -160,6 +160,12 @@ export async function createPilot({host='0.0.0.0',port=9010,manual=false}={}) {
         ws.car.human=true;ws.car.connected=true;ws.car.ready=true;ws.car.seq=-1;ws.car.inputAt=-Infinity;ws.car.boostQueued=false;
         clearTimeout(timeout);
         send(ws,{type:'welcome',role:'player',id:ws.car.id,token,name:ws.car.name});send(ws,snapshot(race));return;
+      }
+      // Lightweight application-level RTT probe for venue diagnostics. This
+      // is deliberately non-authoritative and does not enter race state.
+      if(m.type==='probe'&&ws.role){
+        if(Number.isSafeInteger(m.nonce))send(ws,{type:'probe',nonce:m.nonce});
+        return;
       }
       if(m.type==='start'){
         if(ws.role==='display'){
