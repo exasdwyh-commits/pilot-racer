@@ -1053,29 +1053,36 @@ for (let s = _tm.from * TRACK_LENGTH; s <= _tm.to * TRACK_LENGTH; s += _tm.step)
 // 地标 3: 游艇码头与海面浮标 (Marina Boardwalk & Yachts)
 // 位于近海直道旁
 // ---------------------------------------------------------------------------
-function buildYacht(x, y, z, rot, color = '#f8fafc') {
+function buildYachtAt(s, lane, yawOff, color = '#f8fafc') {
+  const p = trackAt(s, lane);
   const yacht = new THREE.Group();
-  yacht.position.set(x, y, z);
-  yacht.rotation.y = rot;
+  yacht.position.set(p.x, Math.min(-1.15, p.y - 2.5), p.z);
+  yacht.rotation.y = p.yaw + yawOff;
   TG.add(yacht);
 
-  // Sleek hull
-  const hull = box(yacht, 0, 0.8, 0, 5.4, 2.2, 16, color, 0, true);
-  hull.scale.set(1, 1, 1);
-  // Flybridge cabin
+  box(yacht, 0, 0.8, 0, 5.4, 2.2, 16, color, 0, true);
   box(yacht, 0, 2.6, -1.2, 3.8, 1.8, 7.8, '#f0f4f8', 0, true);
-  // Tinted cabin glass
   box(yacht, 0, 2.7, 0.2, 3.85, 1.2, 3.2, '#1a3340', 0, false);
-  // Mast & radar arch
   cylinder(yacht, 0, 4.6, -2.4, 0.08, 0.12, 3.2, '#c0ccd4', 6, true);
   return yacht;
 }
 
-// Boardwalk piers & Yachts
-box(TG, -35, -1, 138, 90, 1.2, 8, '#9c7a53', 0, true);
-box(TG, 15, -1, 138, 8, 1.2, 42, '#9c7a53', 0, true);
-buildYacht(-10, -1.2, 156, 0.15, '#f8fafc');
-buildYacht(32, -1.2, 165, -0.3, '#0288d1');
+// Track-relative marina: it remains next to the coast straight even when the
+// centreline is redesigned, instead of being stranded at old world coords.
+{
+  const marinaS = TRACK_LENGTH * 0.135;
+  const side = 1;
+  const marinaLane = side * (halfWidthAt(marinaS) + 30);
+  const p = trackAt(marinaS, marinaLane);
+  const marina = new THREE.Group();
+  marina.position.set(p.x, Math.min(-1.7, p.y - 3.0), p.z);
+  marina.rotation.y = p.yaw;
+  TG.add(marina);
+  box(marina, 0, 0, 0, 64, 1.0, 7, '#9c7a53', 0, true);
+  box(marina, 18, 0, 15, 7, 1.0, 38, '#9c7a53', 0, true);
+  buildYachtAt(TRACK_LENGTH * 0.125, side * (halfWidthAt(TRACK_LENGTH * 0.125) + 42), 0.15, '#f8fafc');
+  buildYachtAt(TRACK_LENGTH * 0.155, side * (halfWidthAt(TRACK_LENGTH * 0.155) + 48), -0.24, '#0288d1');
+}
 
 // ---------------------------------------------------------------------------
 // 地标 4: 海角旋转探照灯塔 (Cape Lighthouse)
@@ -1220,30 +1227,46 @@ for (let i = 0; i < 8; i++) {
   box(TG, p.x, p.y + 0.06, p.z, 2, 0.02, 3.5, '#7b8782', p.yaw, false);
 }
 
-// Buildings with Sandstone Facades and Reflective Glass Windows
-let seed = 41;
-function rand() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+// Track-relative city blocks. Buildings are children of the current track
+// group (so switching tracks removes them cleanly) and follow the circuit
+// rather than the obsolete world-centred island layout.
 const buildingColors = ['#eac8a8', '#f0b7a1', '#eee3cb', '#d7d8bf', '#eccb87', '#a5c2ba'];
-const glassMat = material('#264752', { roughness: 0.14, metalness: 0.86 });
+const glassMat = material('#264752', { roughness: 0.12, metalness: 0.72, envMapIntensity: 1.1 });
+const roadSamples = Array.from({ length: 256 }, (_, i) => {
+  const s = i / 256 * TRACK_LENGTH;
+  return { ...trackAt(s), width: halfWidthAt(s) };
+});
+const clearsOtherRoad = (point, radius) => roadSamples.every(
+  q => Math.hypot(point.x - q.x, point.z - q.z) > q.width + radius + 3,
+);
 
-for (let i = 0; i < 48; i++) {
-  const a = trand() * Math.PI * 2, r = 28 + trand() * 34;
-  const x = Math.cos(a) * r, z = Math.sin(a) * r * 0.68;
-  const w = 5 + trand() * 8, d = 5 + trand() * 7, h = 5 + trand() * 12;
-  box(scene, x, h / 2 + 0.5, z, w, h, d, buildingColors[i % buildingColors.length], 0, true);
-  box(scene, x, h + 1, z, w + 0.5, 0.7, d + 0.5, '#f4e8d0', 0, true);
-  if (i % 3 === 0) box(scene, x, h + 1.9, z, w * 0.5, 1.8, d * 0.5, '#78a284', 0, true);
-  // Reflective windows
-  for (let y = 3; y < h - 1; y += 3.5) {
+for (let i = 0; i < 38; i++) {
+  const s = (0.025 + i / 38 * 0.94 + (trand() - 0.5) * 0.018) * TRACK_LENGTH;
+  const side = i % 2 ? 1 : -1;
+  const lane = side * (halfWidthAt(s) + 19 + trand() * 29);
+  const p = trackAt(s, lane);
+  const w = 5 + trand() * 8, d = 5 + trand() * 7, h = 6 + trand() * 14;
+  if (!clearsOtherRoad(p, Math.max(w, d) * 0.55)) continue;
+
+  const building = new THREE.Group();
+  building.position.set(p.x, p.y - 0.15, p.z);
+  building.rotation.y = p.yaw + (side > 0 ? Math.PI : 0) + (trand() - 0.5) * 0.16;
+  TG.add(building);
+
+  box(building, 0, h / 2, 0, w, h, d, buildingColors[i % buildingColors.length], 0, true);
+  box(building, 0, h + 0.35, 0, w + 0.45, 0.55, d + 0.45, '#f4e8d0', 0, true);
+  if (i % 3 === 0) box(building, 0, h + 1.35, 0, w * 0.48, 1.4, d * 0.48, '#78a284', 0, true);
+
+  for (let y = 2.8; y < h - 1; y += 3.3) {
     for (let f = -1; f <= 1; f++) {
-      const win1 = new THREE.Mesh(boxGeo, glassMat);
-      win1.position.set(x + f * w * 0.29, y, z + d / 2 + 0.04);
-      win1.scale.set(1.25, 1.8, 0.08);
-      TG.add(win1);
-      const win2 = new THREE.Mesh(boxGeo, glassMat);
-      win2.position.set(x + w / 2 + 0.04, y, z + f * d * 0.28);
-      win2.scale.set(0.08, 1.8, 1.3);
-      TG.add(win2);
+      const front = new THREE.Mesh(boxGeo, glassMat);
+      front.position.set(f * w * 0.29, y, d / 2 + 0.035);
+      front.scale.set(Math.min(1.15, w * 0.16), 1.55, 0.055);
+      building.add(front);
+      const sideWin = new THREE.Mesh(boxGeo, glassMat);
+      sideWin.position.set(w / 2 + 0.035, y, f * d * 0.28);
+      sideWin.scale.set(0.055, 1.55, Math.min(1.15, d * 0.17));
+      building.add(sideWin);
     }
   }
 }
@@ -1267,13 +1290,13 @@ for (let i = 0; i < 68; i++) {
   const p = trackAt(i / 68 * TRACK_LENGTH, i % 2 ? -15 : 15);
   const pm = prop(i % 2 ? 'palmTall' : 'palm');
   if (pm) {
-    pm.position.set(p.x, 0, p.z);
+    pm.position.set(p.x, p.y, p.z);
     pm.rotation.y = trand() * Math.PI * 2;
     const sc = 4.2 + trand() * 1.2;
     pm.scale.set(sc, sc, sc);
     TG.add(pm);
   } else {
-    palm(p.x, 0, p.z, 0.7 + trand() * 0.6);
+    palm(p.x, p.y, p.z, 0.7 + trand() * 0.6);
   }
 }
 // Trackside rocks & bushes (additive: skipped when models are missing).
