@@ -29,26 +29,12 @@ try {
     { timeout: 45_000 },
   );
 
-  const display = await browser.newPage({
-    viewport: { width: 1280, height: 720 },
-    deviceScaleFactor: 1,
-  });
-  await display.goto(base + '/display', { waitUntil: 'domcontentloaded' });
-  await display.waitForSelector('#game-surface', {
-    state: 'attached',
-    timeout: 20_000,
-  });
-  await display.waitForTimeout(4_000);
-
+  // Start and capture the phone before opening the TV renderer. GitHub's
+  // software WebGL stack is far more reliable when only one heavy Three.js
+  // context is active at a time; this still validates the real authoritative
+  // race and the exact 844×390 phone HUD.
   const start = await fetch(base + '/api/start', { method: 'POST' });
   if (!start.ok) throw new Error('POST /api/start failed: ' + start.status);
-
-  await display.waitForFunction(
-    () => document.querySelector('#phase')?.textContent === '比赛进行中',
-    null,
-    { timeout: 30_000 },
-  );
-  await display.waitForTimeout(1_500);
 
   await phone.waitForFunction(
     () => {
@@ -64,6 +50,23 @@ try {
     fullPage: false,
     timeout: 120_000,
   });
+  await phone.close();
+
+  const display = await browser.newPage({
+    viewport: { width: 1280, height: 720 },
+    deviceScaleFactor: 1,
+  });
+  await display.goto(base + '/display', { waitUntil: 'domcontentloaded' });
+  await display.waitForSelector('#game-surface', {
+    state: 'attached',
+    timeout: 30_000,
+  });
+  await display.waitForFunction(
+    () => document.querySelector('#phase')?.textContent === '比赛进行中',
+    null,
+    { timeout: 30_000 },
+  );
+  await display.waitForTimeout(1_500);
 
   await display.screenshot({
     path: 'docs/screenshots/tv-auto-director.png',
