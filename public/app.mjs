@@ -1327,9 +1327,11 @@ const cameraSightLines = broadcastTemplates(trackId).map(template => {
   const pose = broadcastPose(trackId, template, s, 0);
   return { camera: pose.camera, target };
 });
-const clearsBroadcastSight = (point, radius) => cameraSightLines.every(({ camera, target }) =>
-  pointSegmentDistanceXZ(point, camera, target) > radius + 5.5
-);
+const clearsBroadcastSight = (point, radius) => cameraSightLines.every(({ camera, target }) => {
+  const cameraClear = Math.hypot(point.x - camera.x, point.z - camera.z) > radius + 22;
+  const sightClear = pointSegmentDistanceXZ(point, camera, target) > radius + 9;
+  return cameraClear && sightClear;
+});
 
 for (let i = 0; i < 38; i++) {
   const s = (0.025 + i / 38 * 0.94 + (trand() - 0.5) * 0.018) * TRACK_LENGTH;
@@ -3277,11 +3279,14 @@ function setTvCamera(trackId, template, car, renderedS, renderedLane = car.lane)
 }
 
 function setHelicopterCamera(car, renderedS, renderedLane) {
-  const high = trackAt(renderedS - 6, renderedLane + 9);
-  const target = trackAt(renderedS + 10, renderedLane * 0.5);
-  targetCamera.set(high.x, high.y + 20, high.z);
-  look.set(target.x, target.y + 1, target.z);
-  camera.fov = 54;
+  // Aerial TV shot: stay well behind and outside the selected kart, then look
+  // back at the kart itself. The previous shallow 6m/20m composition often
+  // framed mostly infield on long bends and could lose the actual race.
+  const high = trackAt(renderedS - 24, renderedLane + 16);
+  const target = trackAt(renderedS + 1.5, renderedLane * 0.7);
+  targetCamera.set(high.x, high.y + 30, high.z);
+  look.set(target.x, target.y + 1.15, target.z);
+  camera.fov = 49;
   liveTemplateId = null;
 }
 
