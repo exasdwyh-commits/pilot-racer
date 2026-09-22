@@ -162,6 +162,30 @@ export function buildSceneryKit(trackId, parent, { box, cylinder, board, materia
     const face = board(g, 0, 3, 0, 3.8, 2.1, `${bend > 0 ? '‹' : '›'} ${Math.abs(bend) > .07 ? '急弯' : '弯道'}`, Math.PI, '#ffc756', '#342d24');
     face.geometry.dispose(); face.geometry = warningGeo;
   }
+  // Motorsport-style 150/100/50 braking boards before the hardest corners.
+  // These are visual cues only; physics still comes entirely from curvature.
+  let previousBrakeApex = -200;
+  for (let apex = 40; apex < TRACK_LENGTH - 30; apex += 10) {
+    const bend = cornerCurvature(apex);
+    if (Math.abs(bend) < .055 || apex - previousBrakeApex < 90) continue;
+    previousBrakeApex = apex;
+    const outside = Math.sign(bend) || 1;
+    for (const marker of [
+      { back: 48, text: '150' },
+      { back: 32, text: '100' },
+      { back: 16, text: '50' },
+    ]) {
+      const s = apex - marker.back;
+      const p = trackAt(s, outside * (halfWidthAt(s) + 2.8));
+      const g = new THREE.Group();
+      g.position.set(p.x, p.y, p.z);
+      g.rotation.y = p.yaw;
+      group.add(g);
+      cylinder(g, 0, 1.2, 0, .08, .10, 2.4, '#263c43', 6, false);
+      board(g, 0, 2.25, 0, 1.65, 1.15, marker.text, Math.PI, '#f5f1e8', '#18232a');
+    }
+  }
+
   // Broad, feathered road shade remains in low tier when shadow maps are off.
   // One vertex-color ribbon; alpha encodes zones. No extra textures/downloads.
   const shadePositions = [], shadeColors = [], shadeIndices = [];
