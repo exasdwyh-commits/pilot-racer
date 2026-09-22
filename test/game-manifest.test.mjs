@@ -13,6 +13,8 @@ assert.equal(manifest.runtime.kind, "process");
 assert.deepEqual(manifest.runtime.command, ["node", "server.mjs"]);
 assert.equal(manifest.runtime.healthPath, "/info");
 assert.equal(manifest.runtime.workingDirectoryEnv, "PILOT_RACER_DIR");
+assert.equal(manifest.runtime.port, 9010);
+assert.equal(manifest.runtime.startPath, "/api/start");
 
 assert.equal(manifest.entrypoints.display, "/display");
 assert.equal(manifest.entrypoints.player, "/");
@@ -21,7 +23,7 @@ assert.equal(manifest.round.joinPolicy, "ephemeral-code");
 assert.ok(manifest.round.codeTtlSeconds > 0);
 assert.equal(manifest.round.lateJoin, false);
 
-assert.ok(manifest.commercial.entitlements.includes("game:kart-racing"));
+assert.ok(manifest.commercial.entitlements.includes("game:pilot-racer"));
 assert.equal(manifest.capabilities.aiFill, true);
 assert.equal(manifest.capabilities.reconnect, true);
 

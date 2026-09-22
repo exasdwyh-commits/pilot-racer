@@ -22,7 +22,8 @@
     "healthPath": "/info",
     "healthProtocol": "pilot-racer/1",
     "startTimeoutMs": 8000,
-    "workingDirectoryEnv": "PILOT_RACER_DIR"
+    "workingDirectoryEnv": "PILOT_RACER_DIR",
+    "startPath": "/api/start"
   },
   "settings": [
     {
@@ -109,7 +110,7 @@
   "commercial": {
     "tier": "base",
     "entitlements": [
-      "game:kart-racing"
+      "game:pilot-racer"
     ]
   }
 }
