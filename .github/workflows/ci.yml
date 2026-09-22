@@ -18,7 +18,7 @@ jobs:
       - name: Install Blender for generated runtime GLBs
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-numpy
       - name: Rebuild Hyper3D runtime roster
         run: blender --background --python scripts/build_hyper3d_runtime_roster.py
       - run: npm run check
