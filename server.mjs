@@ -35,6 +35,7 @@ const files = new Map([
   ['/vendor/three.module.js',['node_modules/three/build/three.module.js','text/javascript']],
   ['/vendor/three.core.js',['node_modules/three/build/three.core.js','text/javascript']],
   ['/vendor/examples/jsm/loaders/GLTFLoader.js',['node_modules/three/examples/jsm/loaders/GLTFLoader.js','text/javascript']],
+  ['/vendor/examples/jsm/environments/RoomEnvironment.js',['node_modules/three/examples/jsm/environments/RoomEnvironment.js','text/javascript']],
   ['/vendor/examples/jsm/utils/BufferGeometryUtils.js',['node_modules/three/examples/jsm/utils/BufferGeometryUtils.js','text/javascript']],
   ['/vendor/examples/jsm/utils/SkeletonUtils.js',['node_modules/three/examples/jsm/utils/SkeletonUtils.js','text/javascript']],
   ['/audio/bgm-race.mp3',['public/audio/bgm-race.mp3','audio/mpeg']],
@@ -112,6 +113,7 @@ export async function createPilot({host='0.0.0.0',port=9010,manual=false}={}) {
           const buf=await readFile(abs);
           const ext=abs.slice(abs.lastIndexOf('.'));
           res.setHeader('Content-Type',ASSET_TYPES[ext]||'application/octet-stream');
+          res.setHeader('Cache-Control','public, max-age=3600');
           res.end(buf);
         }catch{res.writeHead(404);res.end('Asset not found');}
         return;

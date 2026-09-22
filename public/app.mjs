@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { trackAt, trackFrameAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput, landscapeSurface, surfaceDelta, ITEM_DEFS, ITEM_BOXES, ITEM_BOX_LANES, SMOKE_RADIUS, JUMP_DURATION, JUMP_HEIGHT, useTrack, TRACKS, halfWidthAt, currentMarks, currentTrackFeatures, pylonAt, PYLON_COUNT } from './simulation.mjs';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { makeDaylightRig, batchStaticScenery } from './scenery.mjs';
 
 const $ = id => document.getElementById(id);
 const query = new URLSearchParams(location.search);
@@ -97,23 +99,85 @@ scene.background = new THREE.Color('#90cad8');
 scene.fog = new THREE.Fog('#90cad8', 210, 720);
 
 const camera = new THREE.PerspectiveCamera(64, layout.width / layout.height, 0.12, 950);
-scene.add(new THREE.HemisphereLight('#fff8e6', '#3b7888', 2.6));
+const hemisphere = new THREE.HemisphereLight('#fff8e6', '#3b7888', 2.6);
+scene.add(hemisphere);
+
+// Lightweight local IBL: gives Hyper3D paint, metal, glass and water something
+// coherent to reflect without adding a remote HDR download.
+const pmrem = new THREE.PMREMGenerator(renderer);
+const roomEnvironment = new RoomEnvironment();
+scene.environment = pmrem.fromScene(roomEnvironment, 0.04).texture;
+scene.environmentIntensity = spectator ? 0.9 : 0.72;
+roomEnvironment.dispose?.();
+pmrem.dispose();
 
 // Direct Sun Lighting
 const sun = new THREE.DirectionalLight('#fff4d5', 3.4);
 sun.position.set(-110, 160, 70);
+const sunTarget = new THREE.Object3D();
+scene.add(sunTarget);
+sun.target = sunTarget;
 sun.castShadow = true;
 sun.shadow.mapSize.width = spectator ? 2048 : 1024;
 sun.shadow.mapSize.height = spectator ? 2048 : 1024;
 sun.shadow.camera.near = 10;
 sun.shadow.camera.far = 420;
-const shadowRange = 160;
+const shadowRange = spectator ? 165 : 95;
 sun.shadow.camera.left = -shadowRange;
 sun.shadow.camera.right = shadowRange;
 sun.shadow.camera.top = shadowRange;
 sun.shadow.camera.bottom = -shadowRange;
 sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.025;
 scene.add(sun);
+const daylightRig = makeDaylightRig({ sun, hemisphere, scene });
+const sunFollow = new THREE.Vector3();
+
+// Lightweight procedural sky dome: richer horizon/zenith separation and a
+// soft sun bloom without post-processing or another texture download.
+const skyUniforms = {
+  topColor: { value: new THREE.Color('#5f9fc4') },
+  horizonColor: { value: new THREE.Color('#d8e3dc') },
+  sunColor: { value: new THREE.Color('#ffe5b0') },
+  sunDirection: { value: new THREE.Vector3(-0.45, 0.78, 0.35).normalize() },
+};
+const skyMaterial = new THREE.ShaderMaterial({
+  uniforms: skyUniforms,
+  side: THREE.BackSide,
+  depthWrite: false,
+  fog: false,
+  vertexShader: `
+    varying vec3 vDir;
+    void main() {
+      vDir = normalize(position);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 topColor;
+    uniform vec3 horizonColor;
+    uniform vec3 sunColor;
+    uniform vec3 sunDirection;
+    varying vec3 vDir;
+    void main() {
+      vec3 dir = normalize(vDir);
+      float horizon = smoothstep(-0.18, 0.72, dir.y);
+      vec3 color = mix(horizonColor, topColor, horizon);
+      float sunDot = max(dot(dir, normalize(sunDirection)), 0.0);
+      color += sunColor * pow(sunDot, 160.0) * 1.15;
+      color += sunColor * pow(sunDot, 14.0) * 0.10;
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
+});
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(820, 32, 18), skyMaterial);
+skyDome.frustumCulled = false;
+skyDome.renderOrder = -1000;
+scene.add(skyDome);
+const skyTopDay = new THREE.Color('#5f9fc4');
+const skyTopWarm = new THREE.Color('#667b91');
+const skyHorizonDay = new THREE.Color('#d8e3dc');
+const skyHorizonWarm = new THREE.Color('#f0b58e');
 
 // ---------------------------------------------------------------------------
 // Procedural Web Audio Synthesizer (零外部依赖，极速即时反馈)
@@ -450,6 +514,7 @@ $('audio-toggle').onclick = () => {
 $('quality-toggle').onclick = () => {
   quality = quality === 'high' ? 'low' : 'high';
   applyQuality();
+  applyVisualQuality();
 };
 
 // ---------------------------------------------------------------------------
@@ -524,8 +589,39 @@ function board(parent, x, y, z, w, h, text, rot = 0, bg, fg, border = null) {
 // ---------------------------------------------------------------------------
 // 赛道复杂度与海湾地标 (Suspension Bridge, Tunnel, Marina, Lighthouse)
 // ---------------------------------------------------------------------------
-// 1. Water with specular shimmer
-const waterMat = material('#1e889b', { roughness: 0.12, metalness: 0.28 });
+// 1. Water with moving micro-normal reflections. The normal texture is
+// generated locally so the scene stays offline-first and has no extra CDN.
+function makeWaterNormal(size = 128) {
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const ax = x / size * Math.PI * 2;
+    const ay = y / size * Math.PI * 2;
+    const dx = Math.cos(ax * 3 + ay * 1.7) * 0.42 + Math.cos(ax * 7 - ay * 2.2) * 0.17;
+    const dz = Math.cos(ay * 4 - ax * 1.3) * 0.38 + Math.cos(ay * 9 + ax * 2.7) * 0.13;
+    const n = new THREE.Vector3(-dx, 1, -dz).normalize();
+    const i = (y * size + x) * 4;
+    data[i] = Math.round((n.x * 0.5 + 0.5) * 255);
+    data[i + 1] = Math.round((n.y * 0.5 + 0.5) * 255);
+    data[i + 2] = Math.round((n.z * 0.5 + 0.5) * 255);
+    data[i + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(42, 42);
+  tex.needsUpdate = true;
+  return tex;
+}
+const waterNormal = makeWaterNormal();
+const waterMat = new THREE.MeshPhysicalMaterial({
+  color: '#16788e',
+  roughness: 0.1,
+  metalness: 0.05,
+  clearcoat: 1,
+  clearcoatRoughness: 0.08,
+  normalMap: waterNormal,
+  normalScale: new THREE.Vector2(0.42, 0.42),
+  envMapIntensity: 1.15,
+});
 const water = new THREE.Mesh(new THREE.PlaneGeometry(1900, 1900), waterMat);
 water.rotation.x = -Math.PI / 2;
 water.position.y = -3;
@@ -554,6 +650,7 @@ const itemBoxMeshes = [];
 let builtTrackId = null;
 
 function isSharedMat(m) {
+  if (m === roadMaterial || m === waterMat) return true;
   if (modelOwned.has(m)) return true;
   for (const v of mats.values()) if (v === m) return true;
   return false;
@@ -801,6 +898,36 @@ function clearTrackScenery() {
   itemBoxMeshes.length = 0;
 }
 
+const textureLoader = new THREE.TextureLoader();
+const roadAlbedo = textureLoader.load('/assets/textures/asphalt_track_diff_1k.png');
+roadAlbedo.colorSpace = THREE.SRGBColorSpace;
+roadAlbedo.wrapS = roadAlbedo.wrapT = THREE.RepeatWrapping;
+roadAlbedo.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const roadNormal = textureLoader.load('/assets/textures/asphalt_track_nor_gl_1k.png');
+roadNormal.wrapS = roadNormal.wrapT = THREE.RepeatWrapping;
+roadNormal.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const roadMaterial = new THREE.MeshStandardMaterial({
+  color: '#e4e7e8',
+  map: roadAlbedo,
+  normalMap: roadNormal,
+  normalScale: new THREE.Vector2(0.72, 0.72),
+  roughness: 0.9,
+  metalness: 0.02,
+  envMapIntensity: 0.45,
+  side: THREE.DoubleSide,
+});
+
+function applyVisualQuality() {
+  const high = quality === 'high';
+  roadMaterial.normalMap = high ? roadNormal : null;
+  roadMaterial.needsUpdate = true;
+  waterMat.normalMap = high ? waterNormal : null;
+  waterMat.clearcoat = high ? 1 : 0.45;
+  waterMat.needsUpdate = true;
+  scene.environmentIntensity = spectator ? 0.9 : (high ? 0.72 : 0.52);
+}
+applyVisualQuality();
+
 /** (Re)build all track-following scenery for the active simulation track. */
 function buildTrackScenery(trackId) {
   clearTrackScenery();
@@ -813,12 +940,15 @@ function buildTrackScenery(trackId) {
 
 // 2. Asphalt Road Ribbon with distinct markings and shadow reception
 function ribbon(left, right, color, yOffset = 0.0, options = {}) {
-  const positions = [], indices = [];
+  const positions = [], indices = [], uvs = [];
   for (let i = 0; i <= 640; i++) {
     const s = i / 640 * TRACK_LENGTH;
+    let edgeIndex = 0;
     for (const edge of [left, right]) {
       const p = trackAt(s, typeof edge === 'function' ? edge(s) : edge);
       positions.push(p.x, p.y + yOffset, p.z);
+      uvs.push(edgeIndex * 2.2, s / 7.5);
+      edgeIndex++;
     }
   }
   for (let i = 0; i < 640; i++) {
@@ -827,9 +957,14 @@ function ribbon(left, right, color, yOffset = 0.0, options = {}) {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.setIndex(indices);
   g.computeVertexNormals();
-  const mesh = new THREE.Mesh(g, material(color, { side: THREE.DoubleSide, ...options }));
+  const { material: customMaterial, ...materialOptions } = options;
+  const mesh = new THREE.Mesh(
+    g,
+    customMaterial || material(color, { side: THREE.DoubleSide, ...materialOptions }),
+  );
   mesh.receiveShadow = true;
   TG.add(mesh);
 }
@@ -837,7 +972,7 @@ function ribbon(left, right, color, yOffset = 0.0, options = {}) {
 // Shoulder base, Dark Asphalt Road, and Markings (edges follow road width)
 const hwEdge = s => halfWidthAt(s);
 ribbon(s => -hwEdge(s) - 1.2, s => hwEdge(s) + 1.2, '#d6c9ad', -0.24, { roughness: 0.9 });
-ribbon(s => -hwEdge(s), s => hwEdge(s), '#282d33', 0.0, { roughness: 0.88, metalness: 0.08 });
+ribbon(s => -hwEdge(s), s => hwEdge(s), '#282d33', 0.0, { material: roadMaterial });
 ribbon(-0.06, 0.06, '#f8fafc', 0.025, { roughness: 0.5 });
 for (const side of [-1, 1]) {
   ribbon(s => side * hwEdge(s) - 0.14, s => side * hwEdge(s) + 0.14, '#f8fafc', 0.035, { roughness: 0.5 });
@@ -981,29 +1116,36 @@ for (let s = _tm.from * TRACK_LENGTH; s <= _tm.to * TRACK_LENGTH; s += _tm.step)
 // 地标 3: 游艇码头与海面浮标 (Marina Boardwalk & Yachts)
 // 位于近海直道旁
 // ---------------------------------------------------------------------------
-function buildYacht(x, y, z, rot, color = '#f8fafc') {
+function buildYachtAt(s, lane, yawOff, color = '#f8fafc') {
+  const p = trackAt(s, lane);
   const yacht = new THREE.Group();
-  yacht.position.set(x, y, z);
-  yacht.rotation.y = rot;
+  yacht.position.set(p.x, Math.min(-1.15, p.y - 2.5), p.z);
+  yacht.rotation.y = p.yaw + yawOff;
   TG.add(yacht);
 
-  // Sleek hull
-  const hull = box(yacht, 0, 0.8, 0, 5.4, 2.2, 16, color, 0, true);
-  hull.scale.set(1, 1, 1);
-  // Flybridge cabin
+  box(yacht, 0, 0.8, 0, 5.4, 2.2, 16, color, 0, true);
   box(yacht, 0, 2.6, -1.2, 3.8, 1.8, 7.8, '#f0f4f8', 0, true);
-  // Tinted cabin glass
   box(yacht, 0, 2.7, 0.2, 3.85, 1.2, 3.2, '#1a3340', 0, false);
-  // Mast & radar arch
   cylinder(yacht, 0, 4.6, -2.4, 0.08, 0.12, 3.2, '#c0ccd4', 6, true);
   return yacht;
 }
 
-// Boardwalk piers & Yachts
-box(TG, -35, -1, 138, 90, 1.2, 8, '#9c7a53', 0, true);
-box(TG, 15, -1, 138, 8, 1.2, 42, '#9c7a53', 0, true);
-buildYacht(-10, -1.2, 156, 0.15, '#f8fafc');
-buildYacht(32, -1.2, 165, -0.3, '#0288d1');
+// Track-relative marina: it remains next to the coast straight even when the
+// centreline is redesigned, instead of being stranded at old world coords.
+{
+  const marinaS = TRACK_LENGTH * 0.135;
+  const side = 1;
+  const marinaLane = side * (halfWidthAt(marinaS) + 30);
+  const p = trackAt(marinaS, marinaLane);
+  const marina = new THREE.Group();
+  marina.position.set(p.x, Math.min(-1.7, p.y - 3.0), p.z);
+  marina.rotation.y = p.yaw;
+  TG.add(marina);
+  box(marina, 0, 0, 0, 64, 1.0, 7, '#9c7a53', 0, true);
+  box(marina, 18, 0, 15, 7, 1.0, 38, '#9c7a53', 0, true);
+  buildYachtAt(TRACK_LENGTH * 0.125, side * (halfWidthAt(TRACK_LENGTH * 0.125) + 42), 0.15, '#f8fafc');
+  buildYachtAt(TRACK_LENGTH * 0.155, side * (halfWidthAt(TRACK_LENGTH * 0.155) + 48), -0.24, '#0288d1');
+}
 
 // ---------------------------------------------------------------------------
 // 地标 4: 海角旋转探照灯塔 (Cape Lighthouse)
@@ -1148,30 +1290,46 @@ for (let i = 0; i < 8; i++) {
   box(TG, p.x, p.y + 0.06, p.z, 2, 0.02, 3.5, '#7b8782', p.yaw, false);
 }
 
-// Buildings with Sandstone Facades and Reflective Glass Windows
-let seed = 41;
-function rand() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+// Track-relative city blocks. Buildings are children of the current track
+// group (so switching tracks removes them cleanly) and follow the circuit
+// rather than the obsolete world-centred island layout.
 const buildingColors = ['#eac8a8', '#f0b7a1', '#eee3cb', '#d7d8bf', '#eccb87', '#a5c2ba'];
-const glassMat = material('#264752', { roughness: 0.14, metalness: 0.86 });
+const glassMat = material('#264752', { roughness: 0.12, metalness: 0.72, envMapIntensity: 1.1 });
+const roadSamples = Array.from({ length: 256 }, (_, i) => {
+  const s = i / 256 * TRACK_LENGTH;
+  return { ...trackAt(s), width: halfWidthAt(s) };
+});
+const clearsOtherRoad = (point, radius) => roadSamples.every(
+  q => Math.hypot(point.x - q.x, point.z - q.z) > q.width + radius + 3,
+);
 
-for (let i = 0; i < 48; i++) {
-  const a = trand() * Math.PI * 2, r = 28 + trand() * 34;
-  const x = Math.cos(a) * r, z = Math.sin(a) * r * 0.68;
-  const w = 5 + trand() * 8, d = 5 + trand() * 7, h = 5 + trand() * 12;
-  box(scene, x, h / 2 + 0.5, z, w, h, d, buildingColors[i % buildingColors.length], 0, true);
-  box(scene, x, h + 1, z, w + 0.5, 0.7, d + 0.5, '#f4e8d0', 0, true);
-  if (i % 3 === 0) box(scene, x, h + 1.9, z, w * 0.5, 1.8, d * 0.5, '#78a284', 0, true);
-  // Reflective windows
-  for (let y = 3; y < h - 1; y += 3.5) {
+for (let i = 0; i < 38; i++) {
+  const s = (0.025 + i / 38 * 0.94 + (trand() - 0.5) * 0.018) * TRACK_LENGTH;
+  const side = i % 2 ? 1 : -1;
+  const lane = side * (halfWidthAt(s) + 19 + trand() * 29);
+  const p = trackAt(s, lane);
+  const w = 5 + trand() * 8, d = 5 + trand() * 7, h = 6 + trand() * 14;
+  if (!clearsOtherRoad(p, Math.max(w, d) * 0.55)) continue;
+
+  const building = new THREE.Group();
+  building.position.set(p.x, p.y - 0.15, p.z);
+  building.rotation.y = p.yaw + (side > 0 ? Math.PI : 0) + (trand() - 0.5) * 0.16;
+  TG.add(building);
+
+  box(building, 0, h / 2, 0, w, h, d, buildingColors[i % buildingColors.length], 0, true);
+  box(building, 0, h + 0.35, 0, w + 0.45, 0.55, d + 0.45, '#f4e8d0', 0, true);
+  if (i % 3 === 0) box(building, 0, h + 1.35, 0, w * 0.48, 1.4, d * 0.48, '#78a284', 0, true);
+
+  for (let y = 2.8; y < h - 1; y += 3.3) {
     for (let f = -1; f <= 1; f++) {
-      const win1 = new THREE.Mesh(boxGeo, glassMat);
-      win1.position.set(x + f * w * 0.29, y, z + d / 2 + 0.04);
-      win1.scale.set(1.25, 1.8, 0.08);
-      TG.add(win1);
-      const win2 = new THREE.Mesh(boxGeo, glassMat);
-      win2.position.set(x + w / 2 + 0.04, y, z + f * d * 0.28);
-      win2.scale.set(0.08, 1.8, 1.3);
-      TG.add(win2);
+      const front = new THREE.Mesh(boxGeo, glassMat);
+      front.position.set(f * w * 0.29, y, d / 2 + 0.035);
+      front.scale.set(Math.min(1.15, w * 0.16), 1.55, 0.055);
+      building.add(front);
+      const sideWin = new THREE.Mesh(boxGeo, glassMat);
+      sideWin.position.set(w / 2 + 0.035, y, f * d * 0.28);
+      sideWin.scale.set(0.055, 1.55, Math.min(1.15, d * 0.17));
+      building.add(sideWin);
     }
   }
 }
@@ -1195,13 +1353,13 @@ for (let i = 0; i < 68; i++) {
   const p = trackAt(i / 68 * TRACK_LENGTH, i % 2 ? -15 : 15);
   const pm = prop(i % 2 ? 'palmTall' : 'palm');
   if (pm) {
-    pm.position.set(p.x, 0, p.z);
+    pm.position.set(p.x, p.y, p.z);
     pm.rotation.y = trand() * Math.PI * 2;
     const sc = 4.2 + trand() * 1.2;
     pm.scale.set(sc, sc, sc);
     TG.add(pm);
   } else {
-    palm(p.x, 0, p.z, 0.7 + trand() * 0.6);
+    palm(p.x, p.y, p.z, 0.7 + trand() * 0.6);
   }
 }
 // Trackside rocks & bushes (additive: skipped when models are missing).
@@ -1402,11 +1560,13 @@ const SKINS = [
   { name: '蔚蓝守护', paint: '#3a86ff', accent: '#ffbe0b', aero: '#03045e', numberFg: '#ffffff', numberBg: '#3a86ff', hub: '#e2e8f0', border: '#ffbe0b' }
 ];
 
-// Hyper3D race-ready shells. Car 01 intentionally keeps the hand-authored hero
-// model; 02-08 replace their procedural shells after the GLB is available.
+// Hyper3D race-ready shells. All eight slots prefer a real GLB; the original
+// procedural karts remain as zero-risk loading fallbacks. 01 uses the retained
+// split Crimson candidate, while 02-08 prefer the mobile runtime build and can
+// fall back to the committed shaded source if runtime assets were not rebuilt.
 // Simulation, collision and ranking continue to use the server-side kart body.
 const KART_MODEL_FILES = [
-  null,
+  '/assets/models/hyper3d-2026-09-19/crimson-kart-parts-candidate.glb',
   '/assets/models/hyper3d-tech-roster/runtime/02-cobalt-manta.glb',
   '/assets/models/hyper3d-tech-roster/runtime/03-jade-lynx.glb',
   '/assets/models/hyper3d-tech-roster/runtime/04-crimson-kestrel.glb',
@@ -1415,9 +1575,19 @@ const KART_MODEL_FILES = [
   '/assets/models/hyper3d-tech-roster/runtime/07-amber-dune.glb',
   '/assets/models/hyper3d-tech-roster/runtime/08-obsidian-pulse.glb',
 ];
+const KART_MODEL_FALLBACK_FILES = [
+  null,
+  '/assets/models/hyper3d-tech-roster/02-cobalt-manta-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/03-jade-lynx-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/04-crimson-kestrel-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/05-violet-nautilus-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/06-teal-courier-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/07-amber-dune-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/08-obsidian-pulse-shaded.glb',
+];
 const kartModelLoader = new GLTFLoader();
 const kartModelPromises = new Map();
-window.__pilotKartModels = { 1: 'procedural' };
+window.__pilotKartModels = {};
 
 // Original hero kart: 赤潮 01. Rounded surfaces use a small bevelled mesh;
 // the existing rig owns animation, so this is a visual replacement only.
@@ -1860,11 +2030,27 @@ function installRuntimeKart(id, source) {
     o.receiveShadow = true;
     const materials = Array.isArray(o.material) ? o.material : [o.material];
     for (const mat of materials) {
-      if (mat?.map) mat.map.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      if (!mat) continue;
+      if (mat.map) mat.map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      if ('envMapIntensity' in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity || 0, 1.05);
+      if ('roughness' in mat) mat.roughness = clamp(mat.roughness, 0.18, 0.82);
     }
   });
   modelRoot.add(model);
   body.add(modelRoot);
+
+  // Preserve any authored wheel hierarchy. Crimson 01 exposes these nodes and
+  // therefore keeps real steering/wheel spin; one-piece roster shells safely
+  // fall back to whole-body animation.
+  const steerNames = ['steer_front_xpos', 'steer_front_xneg'];
+  const wheelNames = [
+    'wheel_front_xpos', 'wheel_front_xneg',
+    'wheel_rear_xpos', 'wheel_rear_xneg',
+  ];
+  const authoredSteer = steerNames.map(name => model.getObjectByName(name)).filter(Boolean);
+  const authoredWheels = wheelNames.map(name => model.getObjectByName(name)).filter(Boolean);
+  if (authoredSteer.length) g.userData.frontPivots = authoredSteer;
+  if (authoredWheels.length) g.userData.wheelGroups = authoredWheels;
 
   const rawBox = new THREE.Box3().setFromObject(model);
   const rawSize = rawBox.getSize(new THREE.Vector3());
@@ -1890,15 +2076,23 @@ async function loadRuntimeKart(id) {
   if (!KART_MODEL_FILES[id] || carMeshes[id]?.userData.runtimeKart) return;
   if (!kartModelPromises.has(id)) {
     window.__pilotKartModels[id + 1] = 'loading';
-    kartModelPromises.set(id, kartModelLoader.loadAsync(KART_MODEL_FILES[id])
-      .then(gltf => {
-        installRuntimeKart(id, gltf.scene);
-        window.__pilotKartModels[id + 1] = 'hyper3d';
-      })
-      .catch(error => {
-        console.warn(`Hyper3D kart ${id + 1} unavailable; using procedural fallback.`, error);
-        window.__pilotKartModels[id + 1] = 'fallback';
-      }));
+    kartModelPromises.set(id, (async () => {
+      const urls = [KART_MODEL_FILES[id], KART_MODEL_FALLBACK_FILES[id]].filter(Boolean);
+      let lastError;
+      for (let sourceIndex = 0; sourceIndex < urls.length; sourceIndex++) {
+        try {
+          const gltf = await kartModelLoader.loadAsync(urls[sourceIndex]);
+          installRuntimeKart(id, gltf.scene);
+          window.__pilotKartModels[id + 1] =
+            sourceIndex === 0 ? 'hyper3d' : 'hyper3d-source-fallback';
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      console.warn(`Hyper3D kart ${id + 1} unavailable; using procedural fallback.`, lastError);
+      window.__pilotKartModels[id + 1] = 'fallback';
+    })());
   }
   return kartModelPromises.get(id);
 }
@@ -2067,6 +2261,14 @@ function connect() {
             const latest = state;
             if (latest && latest.trackId && latest.trackId !== builtTrackId && useTrack(latest.trackId)) {
               buildTrackScenery(latest.trackId);
+              if (trackGroup) {
+                if (beaconRay) beaconRay.userData.dynamicScenery = true;
+                if (gantryMount?.parent) gantryMount.parent.userData.dynamicScenery = true;
+                for (const item of itemBoxMeshes) item.userData.dynamicScenery = true;
+                for (const item of chevronPanels) item.group.userData.dynamicScenery = true;
+                const removedCalls = batchStaticScenery(trackGroup);
+                try { window.__pilotSceneBatches = removedCalls; } catch {}
+              }
               for (const c of latest.cars) {
                 carMeshes[c.id].userData.s = c.s;
                 carMeshes[c.id].userData.lane = c.lane;
@@ -2982,7 +3184,24 @@ function animate(now) {
     frameCount = 0;
   }
 
-  // 1. Dynamic Environmental Animations: Lighthouse ray, Digital Chevrons
+  // 1. Dynamic Environmental Animations: slow daylight, water shimmer,
+  // lighthouse ray and digital chevrons.
+  const daylightBlend = daylightRig.update(state, dt);
+  // Follow the active camera so the limited shadow map is spent where the
+  // audience/player can actually see it. This matters on the new ~1.1 km lap.
+  sunFollow.set(camera.position.x, 0, camera.position.z);
+  sunTarget.position.lerp(sunFollow, 1 - Math.exp(-dt * 2.4));
+  sun.position.x += sunTarget.position.x;
+  sun.position.z += sunTarget.position.z;
+  sun.target.updateMatrixWorld();
+
+  skyDome.position.copy(camera.position);
+  skyUniforms.topColor.value.copy(skyTopDay).lerp(skyTopWarm, daylightBlend);
+  skyUniforms.horizonColor.value.copy(skyHorizonDay).lerp(skyHorizonWarm, daylightBlend);
+  skyUniforms.sunDirection.value.copy(sun.position).sub(sunTarget.position).normalize();
+  renderer.toneMappingExposure = 1.2 - daylightBlend * 0.07;
+  waterNormal.offset.x = (waterNormal.offset.x + dt * 0.007) % 1;
+  waterNormal.offset.y = (waterNormal.offset.y + dt * 0.004) % 1;
   if (beaconRay) beaconRay.rotation.y += dt * 1.6;
   for (const [idx, chev] of chevronPanels.entries()) {
     const flowPhase = (now * 0.003 + idx * 0.4) % 1;
@@ -3249,8 +3468,11 @@ function animate(now) {
     ui(now);
     lastUi = now;
   }
-  heroBonnet.visible=myId===0;
-  for(const piece of originalBonnet)piece.visible=myId!==0;
+  // Keep cockpit paint consistent with the assigned GLB slot. The previous
+  // generic fallback showed a red hood for cars 02-08, which broke livery
+  // continuity in first person.
+  heroBonnet.visible = myId !== null;
+  for (const piece of originalBonnet) piece.visible = false;
   if(kartPreview){
     for(const child of scene.children)if(child!==carMeshes[0]&&child!==camera&&!child.isLight&&!child.userData.kartStage)child.visible=false;
     const hero=carMeshes[0];hero.visible=true;hero.position.set(0,0,0);hero.rotation.set(0,previewYaw,0);
