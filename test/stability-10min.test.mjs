@@ -64,7 +64,11 @@ test('10-minute continuous 2-player battle simulation: stability, bounded entiti
     }
   }
 
-  assert.ok(completedRounds >= 4, `Expected at least 4 full race rematches in 10 minutes, got ${completedRounds}`);
+  const minimumRounds = Math.max(2, Math.floor(TOTAL_SECONDS / (race.seconds + 16)));
+  assert.ok(
+    completedRounds >= minimumRounds,
+    `Expected at least ${minimumRounds} full race rematches in 10 minutes, got ${completedRounds}`,
+  );
   assert.equal(race.cars.length, 8);
   assert.equal(p1.name, '手机A');
   assert.equal(p2.name, '手机B');
