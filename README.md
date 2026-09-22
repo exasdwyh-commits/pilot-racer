@@ -47,7 +47,11 @@ npm start
 
 ## Visual Preview
 
-GitHub 会用 Playwright 启动真实 Pilot Racer 服务并开始一场权威 AI 满编比赛，然后自动刷新以下截图：
+GitHub 会用 Playwright 启动真实 Pilot Racer 服务，加入一台 844×390 横屏“手机车手”并开始一场权威比赛，然后自动刷新以下截图。手机截图同时作为驾驶 HUD、赛道提示与第一人称构图的真实运行验收，不是静态设计稿。
+
+### 手机第一人称驾驶 HUD
+
+![Pilot Racer phone driver HUD](docs/screenshots/phone-driver-hud.png)
 
 ### 自动电视导播
 
