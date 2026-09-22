@@ -1,19 +1,28 @@
 {
+  "schemaVersion": 1,
   "id": "pilot-racer",
   "name": "极速等位赛",
   "subtitle": "海湾环线",
   "genre": "竞速",
   "version": "0.1.0",
   "summary": "手机第一人称驾驶 + 大屏导播自动追踪的多人竞速。顾客扫码即玩，电脑端跑唯一权威模拟。",
-  "players": { "min": 1, "max": 8 },
+  "players": {
+    "min": 1,
+    "max": 8
+  },
   "runtime": {
-    "command": ["node", "server.mjs"],
+    "kind": "process",
+    "command": [
+      "node",
+      "server.mjs"
+    ],
     "cwd": ".",
     "port": 9010,
     "host": "0.0.0.0",
     "healthPath": "/info",
     "healthProtocol": "pilot-racer/1",
-    "startTimeoutMs": 8000
+    "startTimeoutMs": 8000,
+    "workingDirectoryEnv": "PILOT_RACER_DIR"
   },
   "settings": [
     {
@@ -34,8 +43,14 @@
       "default": "bay",
       "description": "开局赛道。大屏端仍可在候场时手动切换。",
       "options": [
-        { "value": "bay", "label": "海湾环线" },
-        { "value": "ridge", "label": "山脊赛道" }
+        {
+          "value": "bay",
+          "label": "海湾环线"
+        },
+        {
+          "value": "ridge",
+          "label": "山脊赛道"
+        }
       ]
     },
     {
@@ -64,8 +79,37 @@
     }
   ],
   "links": [
-    { "label": "大屏导播", "path": "/display" },
-    { "label": "手机加入页", "path": "/" }
+    {
+      "label": "大屏导播",
+      "path": "/display"
+    },
+    {
+      "label": "手机加入页",
+      "path": "/"
+    }
   ],
-  "notes": "ROOM_CODE、TRACK、LAPS、RACE_SECONDS 已由 server.mjs 读取并传入权威模拟。大屏仍可在候场阶段手动切换赛道；门店配置在下一次启动进程时生效。"
+  "notes": "ROOM_CODE、TRACK、LAPS、RACE_SECONDS 已由 server.mjs 读取并传入权威模拟。大屏仍可在候场阶段手动切换赛道；门店配置在下一次启动进程时生效。",
+  "category": "racing",
+  "entrypoints": {
+    "display": "/display",
+    "player": "/"
+  },
+  "capabilities": {
+    "aiFill": true,
+    "hotJoin": true,
+    "reconnect": true,
+    "highlights": true,
+    "replay": false
+  },
+  "round": {
+    "joinPolicy": "ephemeral-code",
+    "codeTtlSeconds": 300,
+    "lateJoin": false
+  },
+  "commercial": {
+    "tier": "base",
+    "entitlements": [
+      "game:kart-racing"
+    ]
+  }
 }
