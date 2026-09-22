@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { trackAt, trackFrameAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput, landscapeSurface, surfaceDelta, ITEM_DEFS, ITEM_BOXES, ITEM_BOX_LANES, SMOKE_RADIUS, JUMP_DURATION, JUMP_HEIGHT, useTrack, TRACKS, halfWidthAt, currentMarks, pylonAt, PYLON_COUNT } from './simulation.mjs';
+import { trackAt, trackFrameAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput, landscapeSurface, surfaceDelta, ITEM_DEFS, ITEM_BOXES, ITEM_BOX_LANES, SMOKE_RADIUS, JUMP_DURATION, JUMP_HEIGHT, useTrack, TRACKS, halfWidthAt, currentMarks, currentTrackFeatures, pylonAt, PYLON_COUNT } from './simulation.mjs';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const $ = id => document.getElementById(id);
@@ -841,6 +841,49 @@ ribbon(s => -hwEdge(s), s => hwEdge(s), '#282d33', 0.0, { roughness: 0.88, metal
 ribbon(-0.06, 0.06, '#f8fafc', 0.025, { roughness: 0.5 });
 for (const side of [-1, 1]) {
   ribbon(s => side * hwEdge(s) - 0.14, s => side * hwEdge(s) + 0.14, '#f8fafc', 0.035, { roughness: 0.5 });
+}
+
+// Skill-route features: bright strips are deliberately offset from the ideal
+// center line, so players must choose them rather than receiving free speed.
+const gameplayFeatures = currentTrackFeatures();
+for (const pad of gameplayFeatures.boostPads) {
+  const s = pad.at * TRACK_LENGTH;
+  const p = trackAt(s, pad.lane);
+  const g = new THREE.Group();
+  g.position.set(p.x, p.y, p.z);
+  g.rotation.y = p.yaw;
+  TG.add(g);
+  for (let k = -2; k <= 2; k++) {
+    const plate = new THREE.Mesh(
+      boxGeo,
+      material(k % 2 ? '#75f4ff' : '#35cfea', {
+        emissive: '#179bb5',
+        emissiveIntensity: 1.2,
+        roughness: 0.28,
+      }),
+    );
+    plate.position.set(0, 0.055, k * 0.72);
+    plate.scale.set(pad.width * 2, 0.035, 0.48);
+    plate.receiveShadow = true;
+    g.add(plate);
+  }
+  const arrow = board(g, 0, 0.095, 0, pad.width * 1.7, 0.7, '»»', 0, '#146a78', '#bffcff');
+  arrow.rotation.x = -Math.PI / 2;
+}
+
+for (const ramp of gameplayFeatures.ramps) {
+  const s = ramp.at * TRACK_LENGTH;
+  const p = trackAt(s, ramp.lane);
+  const g = new THREE.Group();
+  g.position.set(p.x, p.y, p.z);
+  g.rotation.y = p.yaw;
+  TG.add(g);
+  const deck = box(g, 0, 0.18, 0, ramp.width * 2, 0.28, 5.0, '#d9dde2', 0, true);
+  deck.rotation.x = -0.055;
+  box(g, -ramp.width + 0.15, 0.18, 0, 0.18, 0.34, 5.1, '#ffcf4a', 0, false);
+  box(g, ramp.width - 0.15, 0.18, 0, 0.18, 0.34, 5.1, '#ffcf4a', 0, false);
+  const rampMark = board(g, 0, 0.36, -0.8, ramp.width * 1.5, 0.75, 'JUMP', 0, '#1b2d36', '#ffdf72');
+  rampMark.rotation.x = -Math.PI / 2;
 }
 
 // Curbs, Barriers and Overhead Gantries
@@ -1957,7 +2000,7 @@ let stickPointer = null;
 let itemPointer = null;
 const controlPointers = new Map(); // buttonElement -> pointerId
 
-let myItem = null, fxChips = [], toastUntil = 0, hlsTop = -1, lastSelfAt = -1, useSentAt = 0;
+let myItem = null, fxChips = [], toastUntil = 0, hlsTop = -1, lastSelfAt = -1, useSentAt = 0, lastFeatureAt = -1;
 const stick = $('joystick'), thumb = $('stick-thumb');
 let boost = false, socket = null, myId = null, seq = 0, state = null, lastStateAt = 0;
 let lastSelfBoost = 0;
@@ -2520,7 +2563,9 @@ const FX_STYLES = {
   jump: ['good', '▲ 腾空'],
   item: ['info', '◆ 获得道具'],
   hit: ['bad', '✹ 被击中'],
-  slowspin: ['bad', '✸ 撞雷打转']
+  slowspin: ['bad', '✸ 撞雷打转'],
+  draft: ['info', '⇢ 尾流蓄力'],
+  draftBoost: ['good', '» 尾流弹射']
 };
 
 function setChip(key, style, text) {
@@ -2586,6 +2631,22 @@ function updateItemUi(m) {
     if (t < me.empUntil) setChip('emp', ...FX_STYLES.emp); else clearChip('emp');
     if (t < me.shieldUntil) setChip('shield', ...FX_STYLES.shield); else clearChip('shield');
     if (t < me.jumpUntil) setChip('jump', ...FX_STYLES.jump); else clearChip('jump');
+    if (me.drafting && me.draftBoost <= 0) setChip('draft', ...FX_STYLES.draft); else clearChip('draft');
+    if (me.draftBoost > 0) setChip('draftBoost', ...FX_STYLES.draftBoost); else clearChip('draftBoost');
+
+    if (Number.isFinite(me.featureEventAt) && me.featureEventAt > lastFeatureAt) {
+      lastFeatureAt = me.featureEventAt;
+      if (me.featureKind === 'boost-pad') {
+        audio.playNitro();
+        showToast('极速带 · 路线奖励');
+      } else if (me.featureKind === 'ramp') {
+        audio.playItemUse('jump');
+        showToast('桥面飞跃！');
+      } else if (me.featureKind === 'draft-release') {
+        audio.playNitro();
+        showToast('尾流弹射 · 超车！');
+      }
+    }
 
     if (myItem && me.item === myItem && btn.classList.contains('cooldown') && now - useSentAt > 700) {
       btn.classList.remove('cooldown');
@@ -3075,7 +3136,7 @@ function animate(now) {
     const me = myId !== null ? state.cars[myId] : null;
     const speedLines = $('speed-lines');
     if (speedLines) {
-      if (me && me.boost > 0) {
+      if (me && (me.boost > 0 || me.draftBoost > 0)) {
         speedLines.hidden = false;
         speedLines.style.opacity = '0.7';
       } else {
