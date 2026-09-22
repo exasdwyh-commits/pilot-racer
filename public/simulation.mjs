@@ -347,14 +347,31 @@ const SHOT_LABELS={overtake:'超车时刻',overtaken:'被超车',overtake_after_
 function setShot(race,{focus,reason,severity,kind,shotS,until,urgent=false}){
   if(!urgent&&race.time-race.shotAt<SHOT_FLOOR)return false;
   let k=kind;
-  if(k!==race.shot&&!urgent&&race.time-race.shotKindAt<SHOT_KIND_FLOOR)k=race.shot;
+  const insideKindFloor =
+    !urgent &&
+    Number.isFinite(race.shotKindAt) &&
+    race.time-race.shotKindAt<SHOT_KIND_FLOOR;
+  if(k!==race.shot&&insideKindFloor)k=race.shot;
+
+  // A TV station is a real physical camera position, not merely a shot "kind".
+  // While the kind floor is active keep the station anchor frozen even if a new
+  // story changes the subject. The operator may pan to the new car, but the
+  // broadcast must not silently jump to another corner camera.
+  const holdTracksideStation =
+    k==='trackside' &&
+    race.shot==='trackside' &&
+    insideKindFloor &&
+    race.shotS!==null;
+
   // The first shot after a reset starts the kind clock even when the angle does
   // not change, so a reset race is not treated as an infinitely old shot.
   if(k!==race.shot||!Number.isFinite(race.shotKindAt))race.shotKindAt=race.time;
   race.shot=k; race.shotAt=race.time;
   race.focus=focus; race.focusReason=reason; race.focusSeverity=severity; race.focusUntil=until;
   race.shotS=(k==='aerial'||k==='trackside')
-    ? Math.round(clamp(shotS??race.cars[focus].s,0,Infinity))
+    ? (holdTracksideStation
+      ? race.shotS
+      : Math.round(clamp(shotS??race.cars[focus].s,0,Infinity)))
     : null;
   return true;
 }
