@@ -99,14 +99,14 @@ applyQuality();
 
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.22;
+renderer.toneMappingExposure = 1.08;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#90cad8');
 scene.fog = new THREE.Fog('#90cad8', 210, 720);
 
 const camera = new THREE.PerspectiveCamera(64, layout.width / layout.height, 0.12, 950);
-const hemisphere = new THREE.HemisphereLight('#fff8e6', '#3b7888', 2.6);
+const hemisphere = new THREE.HemisphereLight('#fff8e6', '#3b7888', 1.9);
 scene.add(hemisphere);
 
 // Lightweight local IBL: gives Hyper3D paint, metal, glass and water something
@@ -114,12 +114,12 @@ scene.add(hemisphere);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const roomEnvironment = new RoomEnvironment();
 scene.environment = pmrem.fromScene(roomEnvironment, 0.04).texture;
-scene.environmentIntensity = spectator ? 0.9 : 0.72;
+scene.environmentIntensity = spectator ? 0.78 : 0.68;
 roomEnvironment.dispose?.();
 pmrem.dispose();
 
 // Direct Sun Lighting
-const sun = new THREE.DirectionalLight('#fff4d5', 3.4);
+const sun = new THREE.DirectionalLight('#fff4d5', 2.75);
 sun.position.set(-110, 160, 70);
 const sunTarget = new THREE.Object3D();
 scene.add(sunTarget);
@@ -931,7 +931,7 @@ function applyVisualQuality() {
   waterMat.normalMap = high ? waterNormal : null;
   waterMat.clearcoat = high ? 1 : 0.45;
   waterMat.needsUpdate = true;
-  scene.environmentIntensity = spectator ? 0.9 : (high ? 0.72 : 0.52);
+  scene.environmentIntensity = spectator ? 0.78 : (high ? 0.68 : 0.5);
 }
 applyVisualQuality();
 
@@ -1310,13 +1310,37 @@ const clearsOtherRoad = (point, radius) => roadSamples.every(
   q => Math.hypot(point.x - q.x, point.z - q.z) > q.width + radius + 3,
 );
 
+// TV stations need intentional sight lines just like a real circuit. Buildings
+// and tall palms are rejected from a corridor between every authored camera
+// and its primary patch of track, so procedural scenery cannot blind the
+// director after a layout rebuild.
+function pointSegmentDistanceXZ(point, a, b) {
+  const abx = b.x - a.x, abz = b.z - a.z;
+  const apx = point.x - a.x, apz = point.z - a.z;
+  const denom = abx * abx + abz * abz || 1;
+  const t = clamp((apx * abx + apz * abz) / denom, 0, 1);
+  return Math.hypot(point.x - (a.x + abx * t), point.z - (a.z + abz * t));
+}
+const cameraSightLines = broadcastTemplates(trackId).map(template => {
+  const s = template.at * TRACK_LENGTH;
+  const target = trackAt(s, 0);
+  const pose = broadcastPose(trackId, template, s, 0);
+  return { camera: pose.camera, target };
+});
+const clearsBroadcastSight = (point, radius) => cameraSightLines.every(({ camera, target }) => {
+  const cameraClear = Math.hypot(point.x - camera.x, point.z - camera.z) > radius + 22;
+  const sightClear = pointSegmentDistanceXZ(point, camera, target) > radius + 9;
+  return cameraClear && sightClear;
+});
+
 for (let i = 0; i < 38; i++) {
   const s = (0.025 + i / 38 * 0.94 + (trand() - 0.5) * 0.018) * TRACK_LENGTH;
   const side = i % 2 ? 1 : -1;
   const lane = side * (halfWidthAt(s) + 19 + trand() * 29);
   const p = trackAt(s, lane);
   const w = 5 + trand() * 8, d = 5 + trand() * 7, h = 6 + trand() * 14;
-  if (!clearsOtherRoad(p, Math.max(w, d) * 0.55)) continue;
+  const buildingRadius = Math.max(w, d) * 0.55;
+  if (!clearsOtherRoad(p, buildingRadius) || !clearsBroadcastSight(p, buildingRadius)) continue;
 
   const building = new THREE.Group();
   building.position.set(p.x, p.y - 0.15, p.z);
@@ -1358,6 +1382,7 @@ function palm(x, y, z, scale = 1) {
 }
 for (let i = 0; i < 68; i++) {
   const p = trackAt(i / 68 * TRACK_LENGTH, i % 2 ? -15 : 15);
+  if (!clearsBroadcastSight(p, 2.4)) continue;
   const pm = prop(i % 2 ? 'palmTall' : 'palm');
   if (pm) {
     pm.position.set(p.x, p.y, p.z);
@@ -3254,11 +3279,14 @@ function setTvCamera(trackId, template, car, renderedS, renderedLane = car.lane)
 }
 
 function setHelicopterCamera(car, renderedS, renderedLane) {
-  const high = trackAt(renderedS - 6, renderedLane + 9);
-  const target = trackAt(renderedS + 10, renderedLane * 0.5);
-  targetCamera.set(high.x, high.y + 20, high.z);
-  look.set(target.x, target.y + 1, target.z);
-  camera.fov = 54;
+  // Stay on the authored road spline for the base position, then add height.
+  // A short 7m offset survives hairpins without a tangent/chord cutting across
+  // the infield, while looking directly at the live kart guarantees framing.
+  const high = trackFrameAt(renderedS - 7, renderedLane);
+  const target = trackFrameAt(renderedS, renderedLane);
+  targetCamera.set(high.x, high.y + 24, high.z);
+  look.set(target.x, target.y + 1.0, target.z);
+  camera.fov = 48;
   liveTemplateId = null;
 }
 
@@ -3288,7 +3316,7 @@ function animate(now) {
   skyUniforms.topColor.value.copy(skyTopDay).lerp(skyTopWarm, daylightBlend);
   skyUniforms.horizonColor.value.copy(skyHorizonDay).lerp(skyHorizonWarm, daylightBlend);
   skyUniforms.sunDirection.value.copy(sun.position).sub(sunTarget.position).normalize();
-  renderer.toneMappingExposure = 1.2 - daylightBlend * 0.07;
+  renderer.toneMappingExposure = 1.08 - daylightBlend * 0.05;
   waterNormal.offset.x = (waterNormal.offset.x + dt * 0.007) % 1;
   waterNormal.offset.y = (waterNormal.offset.y + dt * 0.004) % 1;
   if (beaconRay) beaconRay.rotation.y += dt * 1.6;
@@ -3538,16 +3566,12 @@ function animate(now) {
       setHelicopterCamera(c, g.userData.s, g.userData.lane);
       newCameraKey = `manual:helicopter:${id}`;
     } else {
-      // Manual chase / player third person.
-      const behindLane = g.userData.lane -
-        clamp(Math.tan(heading) * 4.5, -2.5, 2.5);
-      const behind = trackAt(g.userData.s - 9.5, behindLane);
-      targetCamera.set(behind.x, behind.y + 5.0, behind.z);
-      const chaseLane = g.userData.lane +
-        clamp(Math.tan(heading) * 13, -5.5, 5.5);
-      const chaseAhead = trackAt(g.userData.s + 14, chaseLane);
-      look.set(chaseAhead.x, chaseAhead.y + 1, chaseAhead.z);
-      camera.fov = 62 + Math.round(clamp(c.speed / 48, 0, 1) * 4);
+      // Short spline-relative chase: both camera base and look target remain on
+      // the road surface through hairpins. The kart itself is the focal point.
+      const behind = trackFrameAt(g.userData.s - 4.8, g.userData.lane);
+      targetCamera.set(behind.x, behind.y + 3.8, behind.z);
+      look.set(p.x, p.y + 1.05, p.z);
+      camera.fov = 56 + Math.round(clamp(c.speed / 48, 0, 1) * 4);
       newCameraKey = myId === null ? `manual:chase:${id}` : 'player:chase';
     }
 
