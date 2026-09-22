@@ -931,7 +931,7 @@ function applyVisualQuality() {
   waterMat.normalMap = high ? waterNormal : null;
   waterMat.clearcoat = high ? 1 : 0.45;
   waterMat.needsUpdate = true;
-  scene.environmentIntensity = spectator ? 0.9 : (high ? 0.72 : 0.52);
+  scene.environmentIntensity = spectator ? 0.78 : (high ? 0.68 : 0.5);
 }
 applyVisualQuality();
 
