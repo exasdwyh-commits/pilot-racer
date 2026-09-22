@@ -28,6 +28,7 @@ const files = new Map([
   ['/app.mjs',['public/app.mjs','text/javascript']], ['/styles.css',['public/styles.css','text/css']],
   ['/simulation.mjs',['public/simulation.mjs','text/javascript']],
   ['/scenery.mjs',['public/scenery.mjs','text/javascript']],
+  ['/broadcast-cameras.mjs',['public/broadcast-cameras.mjs','text/javascript']],
   ['/item-visuals.mjs',['public/item-visuals.mjs','text/javascript']],
   ['/garage',['public/garage.html','text/html']],
   ['/garage.mjs',['public/garage.mjs','text/javascript']],
