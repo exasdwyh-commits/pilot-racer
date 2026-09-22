@@ -113,6 +113,7 @@ export async function createPilot({host='0.0.0.0',port=9010,manual=false}={}) {
           const buf=await readFile(abs);
           const ext=abs.slice(abs.lastIndexOf('.'));
           res.setHeader('Content-Type',ASSET_TYPES[ext]||'application/octet-stream');
+          res.setHeader('Cache-Control','public, max-age=3600');
           res.end(buf);
         }catch{res.writeHead(404);res.end('Asset not found');}
         return;
