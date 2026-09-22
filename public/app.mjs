@@ -114,12 +114,15 @@ pmrem.dispose();
 // Direct Sun Lighting
 const sun = new THREE.DirectionalLight('#fff4d5', 3.4);
 sun.position.set(-110, 160, 70);
+const sunTarget = new THREE.Object3D();
+scene.add(sunTarget);
+sun.target = sunTarget;
 sun.castShadow = true;
 sun.shadow.mapSize.width = spectator ? 2048 : 1024;
 sun.shadow.mapSize.height = spectator ? 2048 : 1024;
 sun.shadow.camera.near = 10;
 sun.shadow.camera.far = 420;
-const shadowRange = 160;
+const shadowRange = spectator ? 165 : 95;
 sun.shadow.camera.left = -shadowRange;
 sun.shadow.camera.right = shadowRange;
 sun.shadow.camera.top = shadowRange;
@@ -128,6 +131,7 @@ sun.shadow.bias = -0.0006;
 sun.shadow.normalBias = 0.025;
 scene.add(sun);
 const daylightRig = makeDaylightRig({ sun, hemisphere, scene });
+const sunFollow = new THREE.Vector3();
 
 // ---------------------------------------------------------------------------
 // Procedural Web Audio Synthesizer (零外部依赖，极速即时反馈)
@@ -3137,6 +3141,13 @@ function animate(now) {
   // 1. Dynamic Environmental Animations: slow daylight, water shimmer,
   // lighthouse ray and digital chevrons.
   daylightRig.update(state, dt);
+  // Follow the active camera so the limited shadow map is spent where the
+  // audience/player can actually see it. This matters on the new ~1.1 km lap.
+  sunFollow.set(camera.position.x, 0, camera.position.z);
+  sunTarget.position.lerp(sunFollow, 1 - Math.exp(-dt * 2.4));
+  sun.position.x += sunTarget.position.x;
+  sun.position.z += sunTarget.position.z;
+  sun.target.updateMatrixWorld();
   waterNormal.offset.x = (waterNormal.offset.x + dt * 0.007) % 1;
   waterNormal.offset.y = (waterNormal.offset.y + dt * 0.004) % 1;
   if (beaconRay) beaconRay.rotation.y += dt * 1.6;
