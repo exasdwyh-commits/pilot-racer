@@ -14,7 +14,7 @@ try {
   if (!info?.join) throw new Error('Pilot /info did not expose a join URL.');
 
   const display = await browser.newPage({
-    viewport: { width: 1600, height: 900 },
+    viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 1,
   });
   await display.goto(base + '/display', { waitUntil: 'domcontentloaded' });
@@ -28,7 +28,8 @@ try {
 
   await display.screenshot({
     path: 'docs/screenshots/tv-auto-director.png',
-    fullPage: true,
+    fullPage: false,
+    timeout: 120_000,
   });
 
   await display.locator('#next').click();
@@ -36,7 +37,8 @@ try {
   await display.waitForTimeout(1_200);
   await display.screenshot({
     path: 'docs/screenshots/tv-free-director.png',
-    fullPage: true,
+    fullPage: false,
+    timeout: 120_000,
   });
 
   await display.locator('#angle').click();
@@ -44,7 +46,8 @@ try {
   await display.waitForTimeout(1_200);
   await display.screenshot({
     path: 'docs/screenshots/tv-helicopter.png',
-    fullPage: true,
+    fullPage: false,
+    timeout: 120_000,
   });
 
   const directorState = await display.evaluate(() => window.__broadcastCamera ?? null);
