@@ -28,6 +28,7 @@ test('real sockets: distinct seats, shared authoritative state, role restriction
   assert.equal(roomEnv.status,200,'local IBL helper is served');
   const asphalt=await fetch(`http://127.0.0.1:${p.port}/assets/textures/asphalt_track_diff_1k.png`);
   assert.equal(asphalt.status,200,'PBR road texture is served');
+  assert.match(asphalt.headers.get('cache-control')||'',/max-age=3600/,'heavy local art assets are cached');
   const glb=await fetch(`http://127.0.0.1:${p.port}/models/tree_palm.glb`);assert.equal(glb.status,200);
   assert.match(glb.headers.get('content-type'),/model\/gltf-binary/);
   assert.equal((await fetch(`http://127.0.0.1:${p.port}/models/%2e%2e%2fserver.mjs`)).status,400);
