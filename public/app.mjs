@@ -3244,8 +3244,8 @@ const look = new THREE.Vector3();
 const smoothLook = new THREE.Vector3();
 let cameraInit = false;
 
-function setTvCamera(trackId, template, car, renderedS) {
-  const pose = broadcastPose(trackId, template, renderedS, car.lane);
+function setTvCamera(trackId, template, car, renderedS, renderedLane = car.lane) {
+  const pose = broadcastPose(trackId, template, renderedS, renderedLane);
   targetCamera.set(pose.camera.x, pose.camera.y, pose.camera.z);
   look.set(pose.look.x, pose.look.y, pose.look.z);
   camera.fov = pose.fov;
@@ -3513,7 +3513,18 @@ function animate(now) {
       // does not silently cut to another station.
       const stationS = state.shotS ?? g.userData.s;
       const template = resolveBroadcastTemplate(state.trackId, stationS);
-      const templateId = setTvCamera(state.trackId, template, c, g.userData.s);
+      let targetS = g.userData.s;
+      let targetLane = g.userData.lane;
+      if (state.duel && state.focusReason === '贴身对决') {
+        const da = state.cars[state.duel.a];
+        const db = state.cars[state.duel.b];
+        if (da && db) {
+          const gap = wrap(db.s - da.s + TRACK_LENGTH / 2, TRACK_LENGTH) - TRACK_LENGTH / 2;
+          targetS = da.s + gap * 0.5;
+          targetLane = (da.lane + db.lane) * 0.5;
+        }
+      }
+      const templateId = setTvCamera(state.trackId, template, c, targetS, targetLane);
       newCameraKey = `auto:trackside:${templateId}`;
     } else if (myId === null && !auto && angle === 0) {
       // Free director: either lock a chosen station or automatically use the
