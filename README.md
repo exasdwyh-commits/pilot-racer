@@ -53,9 +53,9 @@ GitHub 会用 Playwright 启动真实 Pilot Racer 服务并开始一场权威 AI
 
 ![Pilot Racer TV auto director](docs/screenshots/tv-auto-director.png)
 
-### 自由导播固定机位
+### 手动追踪机位
 
-![Pilot Racer free director](docs/screenshots/tv-free-director.png)
+![Pilot Racer chase camera](docs/screenshots/tv-chase-camera.png)
 
 ### 直升机全景
 
