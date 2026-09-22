@@ -18,7 +18,7 @@ test('visual art pass activates the dormant lighting and PBR pipeline', () => {
   assert.match(app, /sunTarget\.position\.lerp/);
   assert.match(app, /const skyDome = new THREE\.Mesh/);
   assert.match(app, /skyUniforms\.sunDirection/);
-  assert.match(app, /toneMappingExposure = 1\.2 - daylightBlend \* 0\.07/);
+  assert.match(app, /toneMappingExposure = 1\.08 - daylightBlend \* 0\.05/);
   assert.match(app, /shadowRange = spectator \? 165 : 95/);
   assert.match(server, /environments\/RoomEnvironment\.js/);
 });
@@ -30,6 +30,9 @@ test('redesigned Bay scenery is track-relative instead of pinned to the old worl
   assert.doesNotMatch(app, /box\(TG, -35, -1, 138/);
   assert.doesNotMatch(app, /box\(scene, x, h \/ 2 \+ 0\.5/);
   assert.match(app, /pm\.position\.set\(p\.x, p\.y, p\.z\)/);
+  assert.match(app, /const cameraSightLines = broadcastTemplates\(trackId\)/);
+  assert.match(app, /clearsBroadcastSight\(p, buildingRadius\)/);
+  assert.match(app, /clearsBroadcastSight\(p, 2\.4\)/);
 });
 
 test('quality pipeline keeps graceful fallbacks instead of making art assets a startup dependency', () => {
