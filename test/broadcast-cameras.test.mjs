@@ -50,3 +50,12 @@ test('free director can step through camera stations and wrap around', () => {
   assert.equal(wrapped.id, list.at(-1).id);
   assert.equal(broadcastTemplateById('bay', wrapped.id)?.id, wrapped.id);
 });
+
+test('tunnel exit stations sit beyond the physical tunnel cover', () => {
+  const bay = broadcastTemplateById('bay', 'bay-tunnel');
+  const ridge = broadcastTemplateById('ridge', 'ridge-tunnel');
+  assert.ok(bay.at > 0.735, 'Bay camera anchor is beyond the covered tunnel');
+  assert.ok(ridge.at > 0.78, 'Ridge camera anchor is beyond the covered tunnel');
+  assert.notEqual(bay.style, 'exit', 'Bay station no longer pulls itself back into the tunnel');
+  assert.notEqual(ridge.style, 'exit', 'Ridge station no longer pulls itself back into the tunnel');
+});
