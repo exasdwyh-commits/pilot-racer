@@ -1,7 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {makeRace,startRace,openLobby,stepRace,applyInput,useItem,snapshot,trackAt,TRACK_LENGTH,LAPS,SHOT_FLOOR,SHOT_KIND_FLOOR,ranking,ITEM_BOXES,ITEM_IDS,HIGHLIGHT_TYPES,MISSILE_LOCK_RANGE,TRACKS,TRACK_IDS,useTrack,currentTrackId,halfWidthAt,cornerCurvature,racingLineFactor,GRIP_LIMIT,pylonAt,PYLON_COUNT,rollPickup} from '../public/simulation.mjs';
+import {makeRace,startRace,openLobby,stepRace,applyInput,useItem,snapshot,trackAt,trackFrameAt,TRACK_LENGTH,LAPS,SHOT_FLOOR,SHOT_KIND_FLOOR,ranking,ITEM_BOXES,ITEM_IDS,HIGHLIGHT_TYPES,MISSILE_LOCK_RANGE,TRACKS,TRACK_IDS,useTrack,currentTrackId,halfWidthAt,cornerCurvature,racingLineFactor,GRIP_LIMIT,pylonAt,PYLON_COUNT,rollPickup,aiRacingLane,resolveCarCollisions} from '../public/simulation.mjs';
 test('closed elevated track is continuous at seam',()=>{const a=trackAt(0),b=trackAt(TRACK_LENGTH-.001);assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<.01);assert.ok(TRACK_LENGTH>500);});
+test('Bay GP V2 is a long technical lap with real elevation and safe road width',()=>{
+ useTrack('bay');
+ assert.ok(TRACK_LENGTH>1000&&TRACK_LENGTH<1200,`technical lap length ${TRACK_LENGTH.toFixed(0)}m`);
+ let maxPitch=0,maxCurvature=0,minWidth=Infinity;
+ for(let i=0;i<256;i++){
+  const s=i/256*TRACK_LENGTH;
+  maxPitch=Math.max(maxPitch,Math.abs(trackFrameAt(s).pitch));
+  maxCurvature=Math.max(maxCurvature,Math.abs(cornerCurvature(s)));
+  minWidth=Math.min(minWidth,halfWidthAt(s));
+ }
+ assert.ok(maxPitch>0.025,`elevation creates visible chassis pitch (${maxPitch.toFixed(3)} rad)`);
+ assert.ok(maxCurvature>0.055,`route contains genuine braking corners (${maxCurvature.toFixed(3)})`);
+ assert.ok(minWidth>=4.3,`tight sections remain raceable (${minWidth.toFixed(2)}m half-width)`);
+});
+test('AI racing line stays on road and changes side through technical corners',()=>{
+ useTrack('bay');
+ const r=makeRace('bay');
+ const c=r.cars[0];
+ const lanes=[];
+ for(let i=0;i<80;i++){
+  c.s=i/80*TRACK_LENGTH;
+  const lane=aiRacingLane(c);
+  lanes.push(lane);
+  assert.ok(Math.abs(lane)<=halfWidthAt(c.s)-1+0.01,'AI target stays inside collision wall');
+ }
+ assert.ok(Math.min(...lanes)<-1&&Math.max(...lanes)>1,'AI uses both sides of the circuit');
+});
 test('race settings configure track, laps and time limit and survive rematches',()=>{
  const r=makeRace('ridge',{laps:5,seconds:60});
  assert.equal(r.trackId,'ridge');assert.equal(r.laps,5);assert.equal(r.seconds,60);assert.equal(r.remaining,60);
@@ -11,7 +38,7 @@ test('race settings configure track, laps and time limit and survive rematches',
 test('countdown holds all cars; server finishes race and rematches connected humans',()=>{
  const r=makeRace();r.cars[0].human=true;r.cars[0].connected=true;r.cars[0].name='小王';startRace(r);
  assert.equal(r.cars[0].name,'小王');for(let i=0;i<90;i++)stepRace(r,1/30);assert.equal(r.cars[0].s,0);
- for(let i=0;i<3000&&r.phase!=='result';i++)stepRace(r,1/30);
+ for(let i=0;i<r.seconds*30+1200&&r.phase!=='result';i++)stepRace(r,1/30);
  assert.equal(r.phase,'result');assert.equal(ranking(r).length,8);assert.ok(r.cars.some(c=>c.finish!==null));
  for(let i=0;i<361;i++)stepRace(r,1/30);assert.equal(r.phase,'lobby');startRace(r);assert.equal(r.phase,'countdown');assert.equal(r.round,2);assert.equal(r.cars[0].finish,null);
 });
@@ -148,9 +175,28 @@ test('missile and mine hits grant a short guard that blocks chain stuns',()=>{
   assert.ok(b.slowUntil>r.time,'guard expired: mine slows again');
   assert.ok('guardUntil' in snapshot(r).cars[1],'guard ships in snapshot for client effects');
 });
-test('collision separates cars, slows them and creates director event',()=>{
- const r=makeRace();r.phase='racing';const[a,b]=r.cars;for(const c of[a,b]){c.s=100;c.lane=0;c.speed=30;c.human=c.connected=true;}
- stepRace(r,1/30);assert.ok(Math.abs(a.lane-b.lane)>=1.79);assert.ok(a.speed<30);assert.ok(r.events.some(e=>e.text==='并排争夺'));
+test('collision separates cars with impulse response instead of sticky per-frame braking',()=>{
+ const r=makeRace();r.phase='racing';const[a,b]=r.cars;
+ for(const c of r.cars.slice(2))c.finish=1;
+ for(const c of[a,b]){c.s=100;c.lane=0;c.speed=30;c.human=c.connected=true;}
+ for(let i=0;i<5;i++)stepRace(r,1/30);
+ assert.ok(Math.abs(a.lane-b.lane)>1.2,`penetration resolved to ${Math.abs(a.lane-b.lane).toFixed(2)}m`);
+ assert.ok(a.speed>25&&b.speed>25,'contact does not freeze either kart');
+ assert.ok(Math.abs(a.lateral-b.lateral)>0.5,'side contact creates opposing lateral momentum');
+ assert.ok(r.events.some(e=>e.text==='车身碰撞 · 位置争夺'));
+});
+test('rear impact transfers speed forward and collision cooldown prevents sticky repeated impulse',()=>{
+ const r=makeRace();r.phase='racing';const[front,rear]=r.cars;
+ for(const c of r.cars.slice(2))c.finish=1;
+ front.s=102;front.lane=0;front.speed=20;
+ rear.s=100;rear.lane=0;rear.speed=36;
+ resolveCarCollisions(r);
+ const afterFront=front.speed,afterRear=rear.speed;
+ assert.ok(afterFront>20,'front kart receives momentum');
+ assert.ok(afterRear<36,'rear kart gives up momentum');
+ resolveCarCollisions(r);
+ assert.equal(front.speed,afterFront,'same contact frame cannot apply a second speed impulse');
+ assert.equal(rear.speed,afterRear,'cooldown blocks repeated sticky braking');
 });
 
 test('right steering moves screen-right in the driving camera around the entire track',()=>{
@@ -301,14 +347,15 @@ test('perfect block refunds energy; late block does not',()=>{
   for(let i=0;i<40;i++)stepRace(r2,1/30);
   assert.ok(!r2.events.some(e=>e.text==='完美格挡导弹！'),'late block is ordinary');
 });
-test('boosting through a collision keeps speed',()=>{
+test('boosting through side contact keeps speed and visibly shoves the victim',()=>{
   const r=makeRace();r.phase='racing';settle(r);
+  for(const c of r.cars.slice(2))c.finish=1;
   const [a,b]=r.cars;
   a.s=100;a.lane=0;a.speed=30;a.boost=1.0;
   b.s=100;b.lane=0.5;b.speed=30;
   stepRace(r,1/30);
   assert.ok(a.speed>=29.5,`booster keeps speed (got ${a.speed.toFixed(1)})`);
-  assert.ok(b.speed<30,'victim still slowed');
+  assert.ok(Math.abs(b.lateral)>1,'victim receives a lateral shove');
 });
 test('pickup pools favor defense up front, chase at the back, pity for last',()=>{
   useTrack('bay');
@@ -469,8 +516,8 @@ test('highlights carry stable increasing ids, ship the newest five and reset bet
  const r=makeRace();r.phase='racing';settle(r);
  const [a,b]=r.cars;
  const bump=()=>{a.s=b.s=100;a.lane=.4;b.lane=0;a.speed=b.speed=30;a.incidentAt=r.time-4;stepRace(r,1/30);};
- for(let i=0;i<13;i++)bump();
- assert.ok(r.highlights.filter(h=>h.type==='car_collision').length>=12,'sustained event stream');
+ for(let i=0;i<60;i++)bump();
+ assert.ok(r.highlights.filter(h=>h.type==='car_collision').length>=10,'collision stream remains stable without per-frame spam');
  for(const h of r.highlights)assert.ok(Number.isSafeInteger(h.id)&&h.id>0,'every highlight has an id');
  for(let i=1;i<r.highlights.length;i++)assert.ok(r.highlights[i-1].id>r.highlights[i].id,'ids strictly decrease from newest');
  const s=snapshot(r);
