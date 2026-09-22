@@ -47,7 +47,7 @@ npm start
 
 ## Visual Preview
 
-GitHub 会用 Playwright 启动真实 Pilot Racer 服务、加入真实手机玩家并开始一场权威比赛，然后自动刷新以下截图：
+GitHub 会用 Playwright 启动真实 Pilot Racer 服务并开始一场权威 AI 满编比赛，然后自动刷新以下截图：
 
 ### 自动电视导播
 
@@ -60,10 +60,6 @@ GitHub 会用 Playwright 启动真实 Pilot Racer 服务、加入真实手机玩
 ### 直升机全景
 
 ![Pilot Racer helicopter view](docs/screenshots/tv-helicopter.png)
-
-### 手机第一人称比赛画面
-
-![Pilot Racer phone race](docs/screenshots/phone-race.png)
 
 截图由 `Visual Preview` GitHub Action 从真实 Three.js / WebSocket 运行结果生成，不是设计稿。视觉、车型、赛道或导播有明显改动时会自动更新，也可手动触发工作流。
 
