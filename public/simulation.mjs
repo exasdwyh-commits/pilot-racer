@@ -273,6 +273,7 @@ export function joystickInput(dx, dy, radius) {
 export function newCar(id) {
   return { id, name: `车手 ${String(id+1).padStart(2,'0')}`, human: false, connected: false, ready: false,
     s: Math.floor(id/2)*-5 || 0, lane: id%2 ? 2.6 : -2.6, speed: 0, lateral: 0,
+    headingError: 0, slipAngle: 0,
     energy: 35, boost: 0, drift: false, finish: null, seq: -1, inputAt: -Infinity,
     steer: 0, steerSm: 0, heldDrift: false, brake: false, boostQueued: false, incidentAt: -Infinity,
     item: null, useAt: -Infinity, slowUntil: -Infinity, slowSpinUntil: -Infinity,
@@ -553,6 +554,10 @@ export const DRAFT_CHARGE_TIME = 1.05;
 export const DRAFT_WAKE_TOP_SPEED = 37;
 export const DRAFT_RELEASE_TOP_SPEED = 41;
 export const DRAFT_RELEASE_SECONDS = 0.95;
+export const MAX_GRIP_HEADING = 0.30;
+export const MAX_DRIFT_HEADING = 0.46;
+export const GRIP_LATERAL_RESPONSE = 7.5;
+export const DRIFT_LATERAL_RESPONSE = 2.2;
 // Static traffic pylons: indestructible track furniture. Positions are a pure
 // function of the track so client and server always agree (see pylonAt).
 export const PYLON_COUNT = 7;
@@ -869,6 +874,8 @@ export function resolveCarCollisions(race) {
         const va = a.lateral, vb = b.lateral;
         a.lateral = ((1 - CAR_COLLISION_RESTITUTION) * va + (1 + CAR_COLLISION_RESTITUTION) * vb) * 0.5 + dir * 0.8;
         b.lateral = ((1 + CAR_COLLISION_RESTITUTION) * va + (1 - CAR_COLLISION_RESTITUTION) * vb) * 0.5 - dir * 0.8;
+        a.headingError = clamp(a.headingError + dir * 0.035, -0.5, 0.5);
+        b.headingError = clamp(b.headingError - dir * 0.035, -0.5, 0.5);
 
         if (a.boost > 0 && b.boost <= 0) {
           b.lateral -= dir * 1.7;
@@ -909,6 +916,8 @@ export function resolveCarCollisions(race) {
             : ((rear.id + front.id) % 2 ? 1 : -1);
         rear.lateral -= escape * 0.85;
         front.lateral += escape * 0.35;
+        rear.headingError = clamp(rear.headingError - escape * 0.035, -0.5, 0.5);
+        front.headingError = clamp(front.headingError + escape * 0.018, -0.5, 0.5);
 
         if (rear.boost > 0 && front.boost <= 0) {
           front.speed = Math.max(front.speed, rear.speed * 1.06);
@@ -936,6 +945,8 @@ export function stepRace(race, dt) {
     for (const car of race.cars) {
       car.speed = 0;
       car.lateral = 0;
+      car.headingError = 0;
+      car.slipAngle = 0;
       car.boost = 0;
       car.drift = false;
     }
@@ -1073,7 +1084,31 @@ export function stepRace(race, dt) {
     const grip = GRIP_LIMIT * (c.drift ? DRIFT_GRIP_BONUS : 1);
     const vmax = Math.sqrt(grip / Math.max(Math.abs(cornerCurvature(c.s)), 1e-4));
     if (c.speed > vmax) c.speed = Math.max(vmax, c.speed - dt * GRIP_SCRUB);
-    c.lateral+=(effSteer*(c.drift?10:7)-c.lateral)*Math.min(1,dt*(c.drift?2.8:8));
+    // Bicycle-style arcade handling in the road frame. Steering first changes
+    // the car's heading; tyre grip then pulls actual lateral velocity toward
+    // that heading. Drift deliberately uses slower lateral response, creating a
+    // readable slip angle instead of a kart that simply slides sideways.
+    const desiredLateral = effSteer * (c.drift ? 10 : 7);
+    const maxHeading = c.drift ? MAX_DRIFT_HEADING : MAX_GRIP_HEADING;
+    const headingRatio = clamp(
+      desiredLateral / Math.max(12, c.speed),
+      -Math.sin(maxHeading),
+      Math.sin(maxHeading),
+    );
+    const headingTarget =
+      Math.asin(headingRatio) * clamp(c.speed / 8, 0, 1);
+    const headingResponse = c.drift ? 4.6 : 8.5;
+    c.headingError +=
+      (headingTarget - c.headingError) * Math.min(1, dt * headingResponse);
+
+    const lateralTarget = Math.sin(c.headingError) * c.speed;
+    const tyreResponse = c.drift
+      ? DRIFT_LATERAL_RESPONSE
+      : GRIP_LATERAL_RESPONSE;
+    c.lateral +=
+      (lateralTarget - c.lateral) * Math.min(1, dt * tyreResponse);
+    c.slipAngle =
+      Math.atan2(c.lateral, Math.max(1, c.speed)) - c.headingError;
     c.lane+=c.lateral*dt;
     // Tractor homing: magnetic pull toward the locked victim's line.
     if (race.time < c.tractorUntil && c.tractorTarget !== null) {
@@ -1084,7 +1119,7 @@ export function stepRace(race, dt) {
     }
     const wallAt = halfWidthAt(c.s) - 1;
     if(Math.abs(c.lane)>wallAt) {
-      c.lane=clamp(c.lane,-wallAt,wallAt); c.lateral*=-.3; c.speed*=.94; c.driftTime=0; c.driftCharge=0;
+      c.lane=clamp(c.lane,-wallAt,wallAt); c.lateral*=-.3; c.headingError*=-.28; c.slipAngle=0; c.speed*=.94; c.driftTime=0; c.driftCharge=0;
       if(race.time-c.incidentAt>3 && race.phase==='racing') {emit(race,c,'贴墙惊险过弯',1);c.incidentAt=race.time;}
     }
     // Pylons are solid: clipping one costs speed and kills the drift charge.
@@ -1093,14 +1128,17 @@ export function stepRace(race, dt) {
       const gap = wrap(py.s - c.s + TRACK_LENGTH / 2, TRACK_LENGTH) - TRACK_LENGTH / 2;
       if (Math.abs(gap) > 1.4 || Math.abs(c.lane - py.lane) > 1.0) continue;
       c.speed = Math.max(8, c.speed * 0.82);
-      c.lateral += (c.lane >= py.lane ? 1 : -1) * 2.5;
+      const pylonDir = c.lane >= py.lane ? 1 : -1;
+      c.lateral += pylonDir * 2.5;
+      c.headingError = clamp(c.headingError + pylonDir * 0.055, -0.5, 0.5);
       c.driftTime = 0;
       c.driftCharge = 0;
       if (race.time - c.incidentAt > 3 && race.phase === 'racing') { emit(race, c, '撞上雪糕筒', 1); c.incidentAt = race.time; }
       break;
     }
     c.energy=clamp(c.energy+dt*(c.drift?12:2),0,100);
-    c.s+=c.speed*dt*racingLineFactor(c.s,c.lane);
+    const forwardFactor = Math.max(0.86, Math.cos(c.headingError));
+    c.s+=c.speed*forwardFactor*dt*racingLineFactor(c.s,c.lane);
     if(race.phase==='racing'&&c.s>=race.laps*TRACK_LENGTH) {c.finish=race.seconds-race.remaining; emit(race,c,'冲过终点',4); highlight(race,'finish_line',c,null,4);}
     if(race.phase==='racing'&&c.finish===null&&c.s>=(race.laps-1)*TRACK_LENGTH&&!c.lastLap) {c.lastLap=true; emit(race,c,'进入最后一圈',3); highlight(race,'last_lap',c,null,2);}
   }
@@ -1147,7 +1185,7 @@ export function snapshot(race) {
     boxes:race.boxes.map(b=>({id:b.id,item:b.item})),
     entities:race.entities.filter(e=>e.alive).map(e=>({id:e.id,kind:e.kind,owner:e.owner,s:Math.round(e.s*100)/100,lane:Math.round(e.lane*100)/100,targetId:e.targetId})),
     highlights:race.highlights.slice(0,5),
-    cars:race.cars.map(c=>({id:c.id,name:c.name,human:c.human,connected:c.connected,ready:Boolean(c.ready),s:c.s,lane:c.lane,speed:c.speed,energy:c.energy,boost:c.boost,drift:c.drift,driftTime:c.driftTime,driftCharge:c.driftCharge,driftStage:driftStage(c),finish:c.finish,lateral:c.lateral,seq:c.seq,
+    cars:race.cars.map(c=>({id:c.id,name:c.name,human:c.human,connected:c.connected,ready:Boolean(c.ready),s:c.s,lane:c.lane,speed:c.speed,energy:c.energy,boost:c.boost,drift:c.drift,driftTime:c.driftTime,driftCharge:c.driftCharge,driftStage:driftStage(c),finish:c.finish,lateral:c.lateral,headingError:c.headingError,slipAngle:c.slipAngle,seq:c.seq,
       steer:Math.round(c.steer*1000)/1000,guardUntil:c.guardUntil,item:c.item,itemEventAt:c.itemEventAt,
       slowUntil:c.slowUntil,slowSpinUntil:c.slowSpinUntil,empUntil:c.empUntil,shieldUntil:c.shieldUntil,
       spinUntil:c.spinUntil,spinAge:c.spinAge,jumpUntil:c.jumpUntil,
