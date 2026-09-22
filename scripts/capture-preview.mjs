@@ -13,6 +13,22 @@ try {
   const info = await fetch(base + '/info').then(r => r.json());
   if (!info?.join) throw new Error('Pilot /info did not expose a join URL.');
 
+  // Establish the phone player first. Two cold software-WebGL contexts can
+  // otherwise contend badly on GitHub runners and delay the second page before
+  // it ever reaches the WebSocket handshake.
+  const phone = await browser.newPage({
+    viewport: { width: 844, height: 390 },
+    deviceScaleFactor: 1,
+  });
+  await phone.goto(base + '/?name=' + encodeURIComponent('预览车手'), {
+    waitUntil: 'domcontentloaded',
+  });
+  await phone.waitForFunction(
+    () => document.body.classList.contains('driving'),
+    null,
+    { timeout: 45_000 },
+  );
+
   const display = await browser.newPage({
     viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 1,
@@ -23,22 +39,6 @@ try {
     timeout: 20_000,
   });
   await display.waitForTimeout(4_000);
-
-  const phone = await browser.newPage({
-    viewport: { width: 844, height: 390 },
-    deviceScaleFactor: 1,
-  });
-  // The runtime already supports name-prefilled direct join. Use that real
-  // path instead of depending on the join form being visually laid out in a
-  // software-WebGL CI viewport before the player session can connect.
-  await phone.goto(base + '/?name=' + encodeURIComponent('预览车手'), {
-    waitUntil: 'domcontentloaded',
-  });
-  await phone.waitForFunction(
-    () => document.body.classList.contains('driving'),
-    null,
-    { timeout: 20_000 },
-  );
 
   const start = await fetch(base + '/api/start', { method: 'POST' });
   if (!start.ok) throw new Error('POST /api/start failed: ' + start.status);
