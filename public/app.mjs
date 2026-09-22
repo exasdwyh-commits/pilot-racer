@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { trackAt, trackFrameAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput, landscapeSurface, surfaceDelta, ITEM_DEFS, ITEM_BOXES, ITEM_BOX_LANES, SMOKE_RADIUS, JUMP_DURATION, JUMP_HEIGHT, useTrack, TRACKS, halfWidthAt, currentMarks, currentTrackFeatures, pylonAt, PYLON_COUNT } from './simulation.mjs';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { makeDaylightRig, batchStaticScenery } from './scenery.mjs';
 
 const $ = id => document.getElementById(id);
 const query = new URLSearchParams(location.search);
@@ -97,7 +99,17 @@ scene.background = new THREE.Color('#90cad8');
 scene.fog = new THREE.Fog('#90cad8', 210, 720);
 
 const camera = new THREE.PerspectiveCamera(64, layout.width / layout.height, 0.12, 950);
-scene.add(new THREE.HemisphereLight('#fff8e6', '#3b7888', 2.6));
+const hemisphere = new THREE.HemisphereLight('#fff8e6', '#3b7888', 2.6);
+scene.add(hemisphere);
+
+// Lightweight local IBL: gives Hyper3D paint, metal, glass and water something
+// coherent to reflect without adding a remote HDR download.
+const pmrem = new THREE.PMREMGenerator(renderer);
+const roomEnvironment = new RoomEnvironment();
+scene.environment = pmrem.fromScene(roomEnvironment, 0.04).texture;
+scene.environmentIntensity = spectator ? 0.9 : 0.72;
+roomEnvironment.dispose?.();
+pmrem.dispose();
 
 // Direct Sun Lighting
 const sun = new THREE.DirectionalLight('#fff4d5', 3.4);
@@ -113,7 +125,9 @@ sun.shadow.camera.right = shadowRange;
 sun.shadow.camera.top = shadowRange;
 sun.shadow.camera.bottom = -shadowRange;
 sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.025;
 scene.add(sun);
+const daylightRig = makeDaylightRig({ sun, hemisphere, scene });
 
 // ---------------------------------------------------------------------------
 // Procedural Web Audio Synthesizer (零外部依赖，极速即时反馈)
@@ -524,8 +538,39 @@ function board(parent, x, y, z, w, h, text, rot = 0, bg, fg, border = null) {
 // ---------------------------------------------------------------------------
 // 赛道复杂度与海湾地标 (Suspension Bridge, Tunnel, Marina, Lighthouse)
 // ---------------------------------------------------------------------------
-// 1. Water with specular shimmer
-const waterMat = material('#1e889b', { roughness: 0.12, metalness: 0.28 });
+// 1. Water with moving micro-normal reflections. The normal texture is
+// generated locally so the scene stays offline-first and has no extra CDN.
+function makeWaterNormal(size = 128) {
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const ax = x / size * Math.PI * 2;
+    const ay = y / size * Math.PI * 2;
+    const dx = Math.cos(ax * 3 + ay * 1.7) * 0.42 + Math.cos(ax * 7 - ay * 2.2) * 0.17;
+    const dz = Math.cos(ay * 4 - ax * 1.3) * 0.38 + Math.cos(ay * 9 + ax * 2.7) * 0.13;
+    const n = new THREE.Vector3(-dx, 1, -dz).normalize();
+    const i = (y * size + x) * 4;
+    data[i] = Math.round((n.x * 0.5 + 0.5) * 255);
+    data[i + 1] = Math.round((n.y * 0.5 + 0.5) * 255);
+    data[i + 2] = Math.round((n.z * 0.5 + 0.5) * 255);
+    data[i + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(42, 42);
+  tex.needsUpdate = true;
+  return tex;
+}
+const waterNormal = makeWaterNormal();
+const waterMat = new THREE.MeshPhysicalMaterial({
+  color: '#16788e',
+  roughness: 0.1,
+  metalness: 0.05,
+  clearcoat: 1,
+  clearcoatRoughness: 0.08,
+  normalMap: waterNormal,
+  normalScale: new THREE.Vector2(0.42, 0.42),
+  envMapIntensity: 1.15,
+});
 const water = new THREE.Mesh(new THREE.PlaneGeometry(1900, 1900), waterMat);
 water.rotation.x = -Math.PI / 2;
 water.position.y = -3;
@@ -801,6 +846,25 @@ function clearTrackScenery() {
   itemBoxMeshes.length = 0;
 }
 
+const textureLoader = new THREE.TextureLoader();
+const roadAlbedo = textureLoader.load('/assets/textures/asphalt_track_diff_1k.png');
+roadAlbedo.colorSpace = THREE.SRGBColorSpace;
+roadAlbedo.wrapS = roadAlbedo.wrapT = THREE.RepeatWrapping;
+roadAlbedo.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const roadNormal = textureLoader.load('/assets/textures/asphalt_track_nor_gl_1k.png');
+roadNormal.wrapS = roadNormal.wrapT = THREE.RepeatWrapping;
+roadNormal.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const roadMaterial = new THREE.MeshStandardMaterial({
+  color: '#e4e7e8',
+  map: roadAlbedo,
+  normalMap: roadNormal,
+  normalScale: new THREE.Vector2(0.72, 0.72),
+  roughness: 0.9,
+  metalness: 0.02,
+  envMapIntensity: 0.45,
+  side: THREE.DoubleSide,
+});
+
 /** (Re)build all track-following scenery for the active simulation track. */
 function buildTrackScenery(trackId) {
   clearTrackScenery();
@@ -813,12 +877,15 @@ function buildTrackScenery(trackId) {
 
 // 2. Asphalt Road Ribbon with distinct markings and shadow reception
 function ribbon(left, right, color, yOffset = 0.0, options = {}) {
-  const positions = [], indices = [];
+  const positions = [], indices = [], uvs = [];
   for (let i = 0; i <= 640; i++) {
     const s = i / 640 * TRACK_LENGTH;
+    let edgeIndex = 0;
     for (const edge of [left, right]) {
       const p = trackAt(s, typeof edge === 'function' ? edge(s) : edge);
       positions.push(p.x, p.y + yOffset, p.z);
+      uvs.push(edgeIndex * 2.2, s / 7.5);
+      edgeIndex++;
     }
   }
   for (let i = 0; i < 640; i++) {
@@ -827,9 +894,14 @@ function ribbon(left, right, color, yOffset = 0.0, options = {}) {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.setIndex(indices);
   g.computeVertexNormals();
-  const mesh = new THREE.Mesh(g, material(color, { side: THREE.DoubleSide, ...options }));
+  const { material: customMaterial, ...materialOptions } = options;
+  const mesh = new THREE.Mesh(
+    g,
+    customMaterial || material(color, { side: THREE.DoubleSide, ...materialOptions }),
+  );
   mesh.receiveShadow = true;
   TG.add(mesh);
 }
@@ -837,7 +909,7 @@ function ribbon(left, right, color, yOffset = 0.0, options = {}) {
 // Shoulder base, Dark Asphalt Road, and Markings (edges follow road width)
 const hwEdge = s => halfWidthAt(s);
 ribbon(s => -hwEdge(s) - 1.2, s => hwEdge(s) + 1.2, '#d6c9ad', -0.24, { roughness: 0.9 });
-ribbon(s => -hwEdge(s), s => hwEdge(s), '#282d33', 0.0, { roughness: 0.88, metalness: 0.08 });
+ribbon(s => -hwEdge(s), s => hwEdge(s), '#282d33', 0.0, { material: roadMaterial });
 ribbon(-0.06, 0.06, '#f8fafc', 0.025, { roughness: 0.5 });
 for (const side of [-1, 1]) {
   ribbon(s => side * hwEdge(s) - 0.14, s => side * hwEdge(s) + 0.14, '#f8fafc', 0.035, { roughness: 0.5 });
@@ -1406,7 +1478,7 @@ const SKINS = [
 // model; 02-08 replace their procedural shells after the GLB is available.
 // Simulation, collision and ranking continue to use the server-side kart body.
 const KART_MODEL_FILES = [
-  null,
+  '/assets/models/hyper3d-2026-09-19/crimson-kart-parts-candidate.glb',
   '/assets/models/hyper3d-tech-roster/runtime/02-cobalt-manta.glb',
   '/assets/models/hyper3d-tech-roster/runtime/03-jade-lynx.glb',
   '/assets/models/hyper3d-tech-roster/runtime/04-crimson-kestrel.glb',
@@ -1415,9 +1487,19 @@ const KART_MODEL_FILES = [
   '/assets/models/hyper3d-tech-roster/runtime/07-amber-dune.glb',
   '/assets/models/hyper3d-tech-roster/runtime/08-obsidian-pulse.glb',
 ];
+const KART_MODEL_FALLBACK_FILES = [
+  null,
+  '/assets/models/hyper3d-tech-roster/02-cobalt-manta-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/03-jade-lynx-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/04-crimson-kestrel-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/05-violet-nautilus-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/06-teal-courier-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/07-amber-dune-shaded.glb',
+  '/assets/models/hyper3d-tech-roster/08-obsidian-pulse-shaded.glb',
+];
 const kartModelLoader = new GLTFLoader();
 const kartModelPromises = new Map();
-window.__pilotKartModels = { 1: 'procedural' };
+window.__pilotKartModels = {};
 
 // Original hero kart: 赤潮 01. Rounded surfaces use a small bevelled mesh;
 // the existing rig owns animation, so this is a visual replacement only.
@@ -1860,11 +1942,27 @@ function installRuntimeKart(id, source) {
     o.receiveShadow = true;
     const materials = Array.isArray(o.material) ? o.material : [o.material];
     for (const mat of materials) {
-      if (mat?.map) mat.map.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      if (!mat) continue;
+      if (mat.map) mat.map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      if ('envMapIntensity' in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity || 0, 1.05);
+      if ('roughness' in mat) mat.roughness = clamp(mat.roughness, 0.18, 0.82);
     }
   });
   modelRoot.add(model);
   body.add(modelRoot);
+
+  // Preserve any authored wheel hierarchy. Crimson 01 exposes these nodes and
+  // therefore keeps real steering/wheel spin; one-piece roster shells safely
+  // fall back to whole-body animation.
+  const steerNames = ['steer_front_xpos', 'steer_front_xneg'];
+  const wheelNames = [
+    'wheel_front_xpos', 'wheel_front_xneg',
+    'wheel_rear_xpos', 'wheel_rear_xneg',
+  ];
+  const authoredSteer = steerNames.map(name => model.getObjectByName(name)).filter(Boolean);
+  const authoredWheels = wheelNames.map(name => model.getObjectByName(name)).filter(Boolean);
+  if (authoredSteer.length) g.userData.frontPivots = authoredSteer;
+  if (authoredWheels.length) g.userData.wheelGroups = authoredWheels;
 
   const rawBox = new THREE.Box3().setFromObject(model);
   const rawSize = rawBox.getSize(new THREE.Vector3());
@@ -1890,15 +1988,23 @@ async function loadRuntimeKart(id) {
   if (!KART_MODEL_FILES[id] || carMeshes[id]?.userData.runtimeKart) return;
   if (!kartModelPromises.has(id)) {
     window.__pilotKartModels[id + 1] = 'loading';
-    kartModelPromises.set(id, kartModelLoader.loadAsync(KART_MODEL_FILES[id])
-      .then(gltf => {
-        installRuntimeKart(id, gltf.scene);
-        window.__pilotKartModels[id + 1] = 'hyper3d';
-      })
-      .catch(error => {
-        console.warn(`Hyper3D kart ${id + 1} unavailable; using procedural fallback.`, error);
-        window.__pilotKartModels[id + 1] = 'fallback';
-      }));
+    kartModelPromises.set(id, (async () => {
+      const urls = [KART_MODEL_FILES[id], KART_MODEL_FALLBACK_FILES[id]].filter(Boolean);
+      let lastError;
+      for (let sourceIndex = 0; sourceIndex < urls.length; sourceIndex++) {
+        try {
+          const gltf = await kartModelLoader.loadAsync(urls[sourceIndex]);
+          installRuntimeKart(id, gltf.scene);
+          window.__pilotKartModels[id + 1] =
+            sourceIndex === 0 ? 'hyper3d' : 'hyper3d-source-fallback';
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      console.warn(`Hyper3D kart ${id + 1} unavailable; using procedural fallback.`, lastError);
+      window.__pilotKartModels[id + 1] = 'fallback';
+    })());
   }
   return kartModelPromises.get(id);
 }
@@ -2067,6 +2173,14 @@ function connect() {
             const latest = state;
             if (latest && latest.trackId && latest.trackId !== builtTrackId && useTrack(latest.trackId)) {
               buildTrackScenery(latest.trackId);
+              if (trackGroup) {
+                if (beaconRay) beaconRay.userData.dynamicScenery = true;
+                if (gantryMount?.parent) gantryMount.parent.userData.dynamicScenery = true;
+                for (const item of itemBoxMeshes) item.userData.dynamicScenery = true;
+                for (const item of chevronPanels) item.group.userData.dynamicScenery = true;
+                const removedCalls = batchStaticScenery(trackGroup);
+                try { window.__pilotSceneBatches = removedCalls; } catch {}
+              }
               for (const c of latest.cars) {
                 carMeshes[c.id].userData.s = c.s;
                 carMeshes[c.id].userData.lane = c.lane;
@@ -2982,7 +3096,11 @@ function animate(now) {
     frameCount = 0;
   }
 
-  // 1. Dynamic Environmental Animations: Lighthouse ray, Digital Chevrons
+  // 1. Dynamic Environmental Animations: slow daylight, water shimmer,
+  // lighthouse ray and digital chevrons.
+  daylightRig.update(state, dt);
+  waterNormal.offset.x = (waterNormal.offset.x + dt * 0.007) % 1;
+  waterNormal.offset.y = (waterNormal.offset.y + dt * 0.004) % 1;
   if (beaconRay) beaconRay.rotation.y += dt * 1.6;
   for (const [idx, chev] of chevronPanels.entries()) {
     const flowPhase = (now * 0.003 + idx * 0.4) % 1;
