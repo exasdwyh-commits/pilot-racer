@@ -21,6 +21,20 @@ try {
   await display.waitForSelector('#game-surface', { timeout: 15_000 });
   await display.waitForTimeout(4_000);
 
+  const phone = await browser.newPage({
+    viewport: { width: 844, height: 390 },
+    deviceScaleFactor: 1,
+  });
+  await phone.goto(base + '/', { waitUntil: 'domcontentloaded' });
+  await phone.waitForSelector('#join-form', { timeout: 15_000 });
+  await phone.fill('#name', '预览车手');
+  await phone.click('#join-form button[type="submit"]');
+  await phone.waitForFunction(
+    () => document.body.classList.contains('driving'),
+    null,
+    { timeout: 20_000 },
+  );
+
   const start = await fetch(base + '/api/start', { method: 'POST' });
   if (!start.ok) throw new Error('POST /api/start failed: ' + start.status);
 
@@ -30,6 +44,21 @@ try {
     { timeout: 30_000 },
   );
   await display.waitForTimeout(1_500);
+
+  await phone.waitForFunction(
+    () => {
+      const coach = document.querySelector('#corner-coach');
+      return document.querySelector('#phase')?.textContent === '比赛进行中' && coach && !coach.hidden;
+    },
+    null,
+    { timeout: 45_000 },
+  );
+  await phone.waitForTimeout(500);
+  await phone.screenshot({
+    path: 'docs/screenshots/phone-driver-hud.png',
+    fullPage: false,
+    timeout: 120_000,
+  });
 
   await display.screenshot({
     path: 'docs/screenshots/tv-auto-director.png',
