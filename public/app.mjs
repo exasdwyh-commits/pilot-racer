@@ -3416,8 +3416,11 @@ function animate(now) {
     ui(now);
     lastUi = now;
   }
-  heroBonnet.visible=myId===0;
-  for(const piece of originalBonnet)piece.visible=myId!==0;
+  // Keep cockpit paint consistent with the assigned GLB slot. The previous
+  // generic fallback showed a red hood for cars 02-08, which broke livery
+  // continuity in first person.
+  heroBonnet.visible = myId !== null;
+  for (const piece of originalBonnet) piece.visible = false;
   if(kartPreview){
     for(const child of scene.children)if(child!==carMeshes[0]&&child!==camera&&!child.isLight&&!child.userData.kartStage)child.visible=false;
     const hero=carMeshes[0];hero.visible=true;hero.position.set(0,0,0);hero.rotation.set(0,previewYaw,0);
