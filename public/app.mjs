@@ -3003,12 +3003,20 @@ function animate(now) {
       // 4. Chassis Suspension Dynamics: Dynamic Roll, Pitch & Squat
       const bg = g.userData.bodyGroup;
       if (bg) {
-        // Lateral body roll on corners and drifts
+        // Lateral body roll on corners and drifts.
         const rollAngle = -c.lateral * (c.drift ? 0.075 : 0.035);
-        bg.rotation.z = rollAngle;
-        // Pitch squat under boost, dive under braking
-        const pitchAngle = c.boost > 0 ? -0.045 : (c.speed > 18 ? -0.012 : 0);
-        bg.rotation.x = pitchAngle;
+        bg.rotation.z += (rollAngle - bg.rotation.z) * Math.min(1, dt * 10);
+
+        // Longitudinal weight transfer: acceleration lifts the nose slightly,
+        // braking dives it, while the parent group already follows road grade.
+        const previousSpeed = Number.isFinite(g.userData.previousSpeed)
+          ? g.userData.previousSpeed
+          : c.speed;
+        const longitudinalAccel = (c.speed - previousSpeed) / Math.max(dt, 1 / 120);
+        g.userData.previousSpeed = c.speed;
+        const pitchAngle = clamp(-longitudinalAccel * 0.0034, -0.075, 0.075) +
+          (c.boost > 0 ? -0.018 : 0);
+        bg.rotation.x += (pitchAngle - bg.rotation.x) * Math.min(1, dt * 9);
       }
 
       if (c.spinUntil > t) g.rotation.z = (c.spinAge * 10) % (Math.PI * 2);
