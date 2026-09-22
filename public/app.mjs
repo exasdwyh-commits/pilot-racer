@@ -599,6 +599,7 @@ const itemBoxMeshes = [];
 let builtTrackId = null;
 
 function isSharedMat(m) {
+  if (m === roadMaterial || m === waterMat) return true;
   if (modelOwned.has(m)) return true;
   for (const v of mats.values()) if (v === m) return true;
   return false;
@@ -1497,8 +1498,10 @@ const SKINS = [
   { name: '蔚蓝守护', paint: '#3a86ff', accent: '#ffbe0b', aero: '#03045e', numberFg: '#ffffff', numberBg: '#3a86ff', hub: '#e2e8f0', border: '#ffbe0b' }
 ];
 
-// Hyper3D race-ready shells. Car 01 intentionally keeps the hand-authored hero
-// model; 02-08 replace their procedural shells after the GLB is available.
+// Hyper3D race-ready shells. All eight slots prefer a real GLB; the original
+// procedural karts remain as zero-risk loading fallbacks. 01 uses the retained
+// split Crimson candidate, while 02-08 prefer the mobile runtime build and can
+// fall back to the committed shaded source if runtime assets were not rebuilt.
 // Simulation, collision and ranking continue to use the server-side kart body.
 const KART_MODEL_FILES = [
   '/assets/models/hyper3d-2026-09-19/crimson-kart-parts-candidate.glb',
