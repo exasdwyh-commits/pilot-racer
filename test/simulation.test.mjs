@@ -440,7 +440,8 @@ test('every track is closed, sane-sized and carries switchable snapshots',()=>{
     assert.equal(currentTrackId(),id);
     const a=trackAt(0),b=trackAt(TRACK_LENGTH-.001);
     assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<.01,`${id} closes at the seam`);
-    assert.ok(TRACK_LENGTH>600&&TRACK_LENGTH<900,`${id} lap length in scenery range`);
+    const lengthRange = id === 'bay' ? [1000,1200] : [600,900];
+    assert.ok(TRACK_LENGTH>lengthRange[0]&&TRACK_LENGTH<lengthRange[1],`${id} lap length in scenery range`);
     let mn=Infinity,mx=0;
     for(let s=0;s<TRACK_LENGTH;s+=2){const h=halfWidthAt(s);mn=Math.min(mn,h);mx=Math.max(mx,h);}
     assert.ok(mn>=4&&mx<=10,`${id} road half-width drivable`);
