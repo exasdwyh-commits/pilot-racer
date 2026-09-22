@@ -24,6 +24,10 @@ test('real sockets: distinct seats, shared authoritative state, role restriction
  resume.send({type:'hello',role:'player',code:p.code,token:a.welcome.token});const welcome=await resume.next('welcome');assert.equal(welcome.id,a.welcome.id);assert.equal(p.race.cars[0].seq,-1);assert.equal(p.race.cars[0].connected,true);
   const res=await fetch(`http://127.0.0.1:${p.port}/qr.svg`);assert.equal(res.status,200);assert.match(await res.text(),/<svg/);
   assert.equal((await fetch(`http://127.0.0.1:${p.port}/server.mjs`)).status,404);
+  const roomEnv=await fetch(`http://127.0.0.1:${p.port}/vendor/examples/jsm/environments/RoomEnvironment.js`);
+  assert.equal(roomEnv.status,200,'local IBL helper is served');
+  const asphalt=await fetch(`http://127.0.0.1:${p.port}/assets/textures/asphalt_track_diff_1k.png`);
+  assert.equal(asphalt.status,200,'PBR road texture is served');
   const glb=await fetch(`http://127.0.0.1:${p.port}/models/tree_palm.glb`);assert.equal(glb.status,200);
   assert.match(glb.headers.get('content-type'),/model\/gltf-binary/);
   assert.equal((await fetch(`http://127.0.0.1:${p.port}/models/%2e%2e%2fserver.mjs`)).status,400);
