@@ -26,6 +26,9 @@ test('real sockets: distinct seats, shared authoritative state, role restriction
   assert.equal((await fetch(`http://127.0.0.1:${p.port}/server.mjs`)).status,404);
   const roomEnv=await fetch(`http://127.0.0.1:${p.port}/vendor/examples/jsm/environments/RoomEnvironment.js`);
   assert.equal(roomEnv.status,200,'local IBL helper is served');
+  const cameraMap=await fetch(`http://127.0.0.1:${p.port}/broadcast-cameras.mjs`);
+  assert.equal(cameraMap.status,200,'TV broadcast camera map module is served');
+  assert.match(await cameraMap.text(),/bay-hairpin/,'Bay camera templates reach the browser');
   const asphalt=await fetch(`http://127.0.0.1:${p.port}/assets/textures/asphalt_track_diff_1k.png`);
   assert.equal(asphalt.status,200,'PBR road texture is served');
   assert.match(asphalt.headers.get('cache-control')||'',/max-age=3600/,'heavy local art assets are cached');
