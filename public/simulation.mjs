@@ -601,6 +601,43 @@ export function cornerCurvature(s) {
   while (d < -Math.PI) d += TAU;
   return d / 6;
 }
+
+// Driver coaching is derived from the same deterministic spline as rendering
+// and physics. It stays client-side, so the 30 Hz authoritative snapshot does
+// not grow just to explain a corner the client can already reproduce exactly.
+export const CORNER_HINT_THRESHOLD = 0.018;
+export function nextCornerHint(s, maxDistance = 96) {
+  const scan = clamp(Number.isFinite(maxDistance) ? maxDistance : 96, 24, 120);
+  let entryDistance = null;
+  let sign = 0;
+  let peak = 0;
+
+  for (let distance = 0; distance <= scan; distance += 4) {
+    const curvature = cornerCurvature(s + distance);
+    const magnitude = Math.abs(curvature);
+    if (entryDistance === null) {
+      if (magnitude < CORNER_HINT_THRESHOLD) continue;
+      entryDistance = distance;
+      sign = Math.sign(curvature) || 1;
+      peak = magnitude;
+      continue;
+    }
+
+    // Once a corner starts, inspect its near apex rather than accidentally
+    // merging the following bend of an S section into one instruction.
+    if (distance > entryDistance + 36) break;
+    if (Math.sign(curvature) === sign) peak = Math.max(peak, magnitude);
+    if (distance > entryDistance + 12 && magnitude < CORNER_HINT_THRESHOLD * 0.55) break;
+  }
+
+  if (entryDistance === null) return null;
+  return {
+    direction: sign > 0 ? 'right' : 'left',
+    distance: entryDistance,
+    severity: peak >= 0.055 ? 'hairpin' : peak >= 0.035 ? 'hard' : 'medium',
+    curvature: Math.round(peak * 1000) / 1000,
+  };
+}
 // An offset lane has a different real path length from the centre line. This
 // bounded factor rewards holding the inside of a bend without turning the
 // lane system into an extreme shortcut on very tight sampled corners.
