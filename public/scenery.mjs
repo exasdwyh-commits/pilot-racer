@@ -4,9 +4,11 @@ import { trackAt, halfWidthAt, cornerCurvature, TRACK_LENGTH, currentMarks, clam
 // Appearance only. No route, collision, ranking or item positions are authored here.
 export const SCENERY_ZONES = Object.freeze({
   bay: [
-    { from: .15, to: .21, shade: .27, name: '彩帆码头', kind: 'sails' },
-    { from: .485, to: .562, shade: .38, name: '海崖拱廊', kind: 'tunnel' },
-    { from: .80, to: .88, shade: .23, name: '棕榈海岸', kind: 'grove' },
+    { from: .09, to: .16, shade: .23, name: '滨海高速段', kind: 'sails' },
+    { from: .25, to: .34, shade: .28, name: '港湾发卡', kind: 'canyon' },
+    { from: .405, to: .49, shade: .25, name: '跨海爬升桥', kind: 'sails' },
+    { from: .665, to: .735, shade: .40, name: '岩壁隧道', kind: 'tunnel' },
+    { from: .79, to: .88, shade: .24, name: '下坡连续弯', kind: 'grove' },
   ],
   ridge: [
     { from: .22, to: .36, shade: .29, name: '赤岩发卡', kind: 'canyon' },
