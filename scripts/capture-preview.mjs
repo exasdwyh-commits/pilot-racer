@@ -25,10 +25,12 @@ try {
     viewport: { width: 844, height: 390 },
     deviceScaleFactor: 1,
   });
-  await phone.goto(base + '/', { waitUntil: 'domcontentloaded' });
-  await phone.waitForSelector('#join-form', { timeout: 15_000 });
-  await phone.fill('#name', '预览车手');
-  await phone.click('#join-form button[type="submit"]');
+  // The runtime already supports name-prefilled direct join. Use that real
+  // path instead of depending on the join form being visually laid out in a
+  // software-WebGL CI viewport before the player session can connect.
+  await phone.goto(base + '/?name=' + encodeURIComponent('预览车手'), {
+    waitUntil: 'domcontentloaded',
+  });
   await phone.waitForFunction(
     () => document.body.classList.contains('driving'),
     null,
