@@ -99,14 +99,14 @@ applyQuality();
 
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.22;
+renderer.toneMappingExposure = 1.08;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#90cad8');
 scene.fog = new THREE.Fog('#90cad8', 210, 720);
 
 const camera = new THREE.PerspectiveCamera(64, layout.width / layout.height, 0.12, 950);
-const hemisphere = new THREE.HemisphereLight('#fff8e6', '#3b7888', 2.6);
+const hemisphere = new THREE.HemisphereLight('#fff8e6', '#3b7888', 1.9);
 scene.add(hemisphere);
 
 // Lightweight local IBL: gives Hyper3D paint, metal, glass and water something
@@ -114,12 +114,12 @@ scene.add(hemisphere);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const roomEnvironment = new RoomEnvironment();
 scene.environment = pmrem.fromScene(roomEnvironment, 0.04).texture;
-scene.environmentIntensity = spectator ? 0.9 : 0.72;
+scene.environmentIntensity = spectator ? 0.78 : 0.68;
 roomEnvironment.dispose?.();
 pmrem.dispose();
 
 // Direct Sun Lighting
-const sun = new THREE.DirectionalLight('#fff4d5', 3.4);
+const sun = new THREE.DirectionalLight('#fff4d5', 2.75);
 sun.position.set(-110, 160, 70);
 const sunTarget = new THREE.Object3D();
 scene.add(sunTarget);
@@ -1310,13 +1310,35 @@ const clearsOtherRoad = (point, radius) => roadSamples.every(
   q => Math.hypot(point.x - q.x, point.z - q.z) > q.width + radius + 3,
 );
 
+// TV stations need intentional sight lines just like a real circuit. Buildings
+// and tall palms are rejected from a corridor between every authored camera
+// and its primary patch of track, so procedural scenery cannot blind the
+// director after a layout rebuild.
+function pointSegmentDistanceXZ(point, a, b) {
+  const abx = b.x - a.x, abz = b.z - a.z;
+  const apx = point.x - a.x, apz = point.z - a.z;
+  const denom = abx * abx + abz * abz || 1;
+  const t = clamp((apx * abx + apz * abz) / denom, 0, 1);
+  return Math.hypot(point.x - (a.x + abx * t), point.z - (a.z + abz * t));
+}
+const cameraSightLines = broadcastTemplates(trackId).map(template => {
+  const s = template.at * TRACK_LENGTH;
+  const target = trackAt(s, 0);
+  const pose = broadcastPose(trackId, template, s, 0);
+  return { camera: pose.camera, target };
+});
+const clearsBroadcastSight = (point, radius) => cameraSightLines.every(({ camera, target }) =>
+  pointSegmentDistanceXZ(point, camera, target) > radius + 5.5
+);
+
 for (let i = 0; i < 38; i++) {
   const s = (0.025 + i / 38 * 0.94 + (trand() - 0.5) * 0.018) * TRACK_LENGTH;
   const side = i % 2 ? 1 : -1;
   const lane = side * (halfWidthAt(s) + 19 + trand() * 29);
   const p = trackAt(s, lane);
   const w = 5 + trand() * 8, d = 5 + trand() * 7, h = 6 + trand() * 14;
-  if (!clearsOtherRoad(p, Math.max(w, d) * 0.55)) continue;
+  const buildingRadius = Math.max(w, d) * 0.55;
+  if (!clearsOtherRoad(p, buildingRadius) || !clearsBroadcastSight(p, buildingRadius)) continue;
 
   const building = new THREE.Group();
   building.position.set(p.x, p.y - 0.15, p.z);
@@ -1358,6 +1380,7 @@ function palm(x, y, z, scale = 1) {
 }
 for (let i = 0; i < 68; i++) {
   const p = trackAt(i / 68 * TRACK_LENGTH, i % 2 ? -15 : 15);
+  if (!clearsBroadcastSight(p, 2.4)) continue;
   const pm = prop(i % 2 ? 'palmTall' : 'palm');
   if (pm) {
     pm.position.set(p.x, p.y, p.z);
@@ -3288,7 +3311,7 @@ function animate(now) {
   skyUniforms.topColor.value.copy(skyTopDay).lerp(skyTopWarm, daylightBlend);
   skyUniforms.horizonColor.value.copy(skyHorizonDay).lerp(skyHorizonWarm, daylightBlend);
   skyUniforms.sunDirection.value.copy(sun.position).sub(sunTarget.position).normalize();
-  renderer.toneMappingExposure = 1.2 - daylightBlend * 0.07;
+  renderer.toneMappingExposure = 1.08 - daylightBlend * 0.05;
   waterNormal.offset.x = (waterNormal.offset.x + dt * 0.007) % 1;
   waterNormal.offset.y = (waterNormal.offset.y + dt * 0.004) % 1;
   if (beaconRay) beaconRay.rotation.y += dt * 1.6;
