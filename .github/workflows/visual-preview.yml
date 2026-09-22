@@ -44,7 +44,7 @@ jobs:
         env:
           HOST: 127.0.0.1
           PORT: 9010
-          RACE_SECONDS: 45
+          RACE_SECONDS: 180
         run: |
           npm start > /tmp/pilot-preview.log 2>&1 &
           echo $! > /tmp/pilot-preview.pid
