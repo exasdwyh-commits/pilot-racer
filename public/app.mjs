@@ -133,6 +133,52 @@ scene.add(sun);
 const daylightRig = makeDaylightRig({ sun, hemisphere, scene });
 const sunFollow = new THREE.Vector3();
 
+// Lightweight procedural sky dome: richer horizon/zenith separation and a
+// soft sun bloom without post-processing or another texture download.
+const skyUniforms = {
+  topColor: { value: new THREE.Color('#5f9fc4') },
+  horizonColor: { value: new THREE.Color('#d8e3dc') },
+  sunColor: { value: new THREE.Color('#ffe5b0') },
+  sunDirection: { value: new THREE.Vector3(-0.45, 0.78, 0.35).normalize() },
+};
+const skyMaterial = new THREE.ShaderMaterial({
+  uniforms: skyUniforms,
+  side: THREE.BackSide,
+  depthWrite: false,
+  fog: false,
+  vertexShader: `
+    varying vec3 vDir;
+    void main() {
+      vDir = normalize(position);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 topColor;
+    uniform vec3 horizonColor;
+    uniform vec3 sunColor;
+    uniform vec3 sunDirection;
+    varying vec3 vDir;
+    void main() {
+      vec3 dir = normalize(vDir);
+      float horizon = smoothstep(-0.18, 0.72, dir.y);
+      vec3 color = mix(horizonColor, topColor, horizon);
+      float sunDot = max(dot(dir, normalize(sunDirection)), 0.0);
+      color += sunColor * pow(sunDot, 160.0) * 1.15;
+      color += sunColor * pow(sunDot, 14.0) * 0.10;
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
+});
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(820, 32, 18), skyMaterial);
+skyDome.frustumCulled = false;
+skyDome.renderOrder = -1000;
+scene.add(skyDome);
+const skyTopDay = new THREE.Color('#5f9fc4');
+const skyTopWarm = new THREE.Color('#667b91');
+const skyHorizonDay = new THREE.Color('#d8e3dc');
+const skyHorizonWarm = new THREE.Color('#f0b58e');
+
 // ---------------------------------------------------------------------------
 // Procedural Web Audio Synthesizer (零外部依赖，极速即时反馈)
 // ---------------------------------------------------------------------------
@@ -3140,7 +3186,12 @@ function animate(now) {
 
   // 1. Dynamic Environmental Animations: slow daylight, water shimmer,
   // lighthouse ray and digital chevrons.
-  daylightRig.update(state, dt);
+  const daylightBlend = daylightRig.update(state, dt);
+  skyDome.position.copy(camera.position);
+  skyUniforms.topColor.value.copy(skyTopDay).lerp(skyTopWarm, daylightBlend);
+  skyUniforms.horizonColor.value.copy(skyHorizonDay).lerp(skyHorizonWarm, daylightBlend);
+  skyUniforms.sunDirection.value.copy(sun.position).sub(sunTarget.position).normalize();
+  renderer.toneMappingExposure = 1.2 - daylightBlend * 0.07;
   // Follow the active camera so the limited shadow map is spent where the
   // audience/player can actually see it. This matters on the new ~1.1 km lap.
   sunFollow.set(camera.position.x, 0, camera.position.z);
