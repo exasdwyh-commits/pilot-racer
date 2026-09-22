@@ -3082,7 +3082,9 @@ function animate(now) {
 
       if (c.spinUntil > t) g.rotation.z = (c.spinAge * 10) % (Math.PI * 2);
       else g.rotation.z = 0;
-      g.rotation.y = p.yaw - c.lateral * (c.drift ? 0.045 : 0.02);
+      // Body yaw now comes from the authoritative heading state rather than
+      // faking steering from lane velocity.
+      g.rotation.y = p.yaw - (c.headingError ?? 0);
 
       // Exhaust Flame Flaring
       if (g.userData.flameGroup) {
@@ -3114,7 +3116,9 @@ function animate(now) {
       g.visible = !(myId === c.id && firstPerson && role === 'player');
       if (myId === c.id && role === 'player') {
         selfSmoke = smokeVolumeAt(c.s);
-        if (c.drift && c.speed > 15) selfSmoke += 0.35;
+        if (c.drift && c.speed > 15) {
+          selfSmoke += 0.24 + Math.min(0.28, Math.abs(c.slipAngle ?? 0) * 1.8);
+        }
         // Drift sustain skid + boost-start whoosh follow game state, not input.
         if (c.drift && state.phase === 'racing') audio.playDrift();
         if (c.boost > 0 && lastSelfBoost <= 0) audio.playNitro();
@@ -3127,7 +3131,9 @@ function animate(now) {
       const fid = auto ? state.focus : manualId ?? 0;
       selfSmoke = smokeVolumeAt(state.cars[fid].s);
       const fc = state.cars[fid];
-      if (fc && fc.drift && fc.speed > 15) selfSmoke += 0.3;
+      if (fc && fc.drift && fc.speed > 15) {
+        selfSmoke += 0.2 + Math.min(0.24, Math.abs(fc.slipAngle ?? 0) * 1.5);
+      }
     }
     smokeFog.hidden = false;
     smokeFog.style.opacity = String(Math.min(0.92, selfSmoke * 0.24));
@@ -3149,13 +3155,18 @@ function animate(now) {
     const id = myId !== null ? myId : auto ? state.focus : manualId ?? 0;
     const c = state.cars[id], g = carMeshes[id];
     const p = trackAt(g.userData.s, g.userData.lane);
-    const ahead = trackAt(g.userData.s + 20, g.userData.lane * 0.7);
+    const heading = c.headingError ?? 0;
+    const noseLane = g.userData.lane +
+      clamp(Math.tan(heading) * 18, -6.5, 6.5);
+    const ahead = trackAt(g.userData.s + 18, noseLane);
 
     if (myId !== null && firstPerson) {
-      // Driver First-Person Cockpit View
+      // Driver camera looks through the actual kart nose. During a drift the
+      // road visibly moves sideways across the windshield instead of the
+      // camera remaining glued to the centreline.
       targetCamera.set(p.x, p.y + 1.7, p.z);
       look.set(ahead.x, ahead.y + 1.5, ahead.z);
-      camera.fov = 72 + (c.boost > 0 ? 8 : 0);
+      camera.fov = 72 + (c.boost > 0 || c.draftBoost > 0 ? 8 : 0);
     } else if (myId === null && angle === 1) {
       // Spectator Panoramic High View
       targetCamera.set(10, 220, 180);
@@ -3191,9 +3202,13 @@ function animate(now) {
       camera.fov = 54;
     } else {
       // Third-Person Chase Camera: kept tight so the car owns the frame.
-      const behind = trackAt(g.userData.s - 9.5, g.userData.lane);
+      const behindLane = g.userData.lane -
+        clamp(Math.tan(heading) * 4.5, -2.5, 2.5);
+      const behind = trackAt(g.userData.s - 9.5, behindLane);
       targetCamera.set(behind.x, behind.y + 5.0, behind.z);
-      const chaseAhead = trackAt(g.userData.s + 14, g.userData.lane * 0.7);
+      const chaseLane = g.userData.lane +
+        clamp(Math.tan(heading) * 13, -5.5, 5.5);
+      const chaseAhead = trackAt(g.userData.s + 14, chaseLane);
       look.set(chaseAhead.x, chaseAhead.y + 1, chaseAhead.z);
       camera.fov = 62 + Math.round(clamp(c.speed / 48, 0, 1) * 4);
     }
