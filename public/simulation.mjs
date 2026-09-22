@@ -523,6 +523,12 @@ export function useItem(race, car, now) {
 export const GRIP_LIMIT = 90;
 export const DRIFT_GRIP_BONUS = 1.5;
 export const GRIP_SCRUB = 28;
+export const BASE_TOP_SPEED = 34;
+export const BOOST_TOP_SPEED = 50;
+export const ENGINE_ACCEL = 11.5;
+export const BOOST_ACCEL = 21;
+export const COAST_DECEL = 5.5;
+export const BRAKE_DECEL = 27;
 // Static traffic pylons: indestructible track furniture. Positions are a pure
 // function of the track so client and server always agree (see pylonAt).
 export const PYLON_COUNT = 7;
@@ -928,8 +934,16 @@ export function stepRace(race, dt) {
         }
       }
     }
-    const target=(c.boost>0?48:31+(ai?c.id*.18:0)) * (!ai&&fresh&&c.brake?.36:1) * slowFactor(c,race.time) * dollySlowFactor(c,race.time);
-    c.speed+=(target-c.speed)*Math.min(1,dt*1.6);
+    const target=(c.boost>0?BOOST_TOP_SPEED:BASE_TOP_SPEED+(ai?c.id*.16:0)) *
+      slowFactor(c,race.time) * dollySlowFactor(c,race.time);
+    const braking=!ai&&fresh&&c.brake;
+    if(braking) {
+      c.speed=Math.max(0,c.speed-BRAKE_DECEL*dt);
+    } else if(c.speed<target) {
+      c.speed=Math.min(target,c.speed+(c.boost>0?BOOST_ACCEL:ENGINE_ACCEL)*dt);
+    } else {
+      c.speed=Math.max(target,c.speed-COAST_DECEL*dt);
+    }
     // Grip cap: bleed down to the corner limit, never push up.
     const grip = GRIP_LIMIT * (c.drift ? DRIFT_GRIP_BONUS : 1);
     const vmax = Math.sqrt(grip / Math.max(Math.abs(cornerCurvature(c.s)), 1e-4));
