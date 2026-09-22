@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {makeRace,startRace,openLobby,stepRace,applyInput,useItem,snapshot,trackAt,trackFrameAt,TRACK_LENGTH,LAPS,SHOT_FLOOR,SHOT_KIND_FLOOR,ranking,ITEM_BOXES,ITEM_IDS,HIGHLIGHT_TYPES,MISSILE_LOCK_RANGE,TRACKS,TRACK_IDS,useTrack,currentTrackId,currentTrackFeatures,halfWidthAt,cornerCurvature,racingLineFactor,GRIP_LIMIT,pylonAt,PYLON_COUNT,rollPickup,aiRacingLane,resolveCarCollisions} from '../public/simulation.mjs';
+import {makeRace,startRace,openLobby,stepRace,applyInput,useItem,snapshot,trackAt,trackFrameAt,TRACK_LENGTH,LAPS,SHOT_FLOOR,SHOT_KIND_FLOOR,ranking,ITEM_BOXES,ITEM_IDS,HIGHLIGHT_TYPES,MISSILE_LOCK_RANGE,TRACKS,TRACK_IDS,useTrack,currentTrackId,currentTrackFeatures,halfWidthAt,cornerCurvature,nextCornerHint,racingLineFactor,GRIP_LIMIT,pylonAt,PYLON_COUNT,rollPickup,aiRacingLane,resolveCarCollisions} from '../public/simulation.mjs';
 test('closed elevated track is continuous at seam',()=>{const a=trackAt(0),b=trackAt(TRACK_LENGTH-.001);assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<.01);assert.ok(TRACK_LENGTH>500);});
 test('Bay GP V2 is a long technical lap with real elevation and safe road width',()=>{
  useTrack('bay');
@@ -735,4 +735,43 @@ test('result titles give every car exactly one award, by priority',()=>{
  startRace(r);
  assert.equal(r.awards.length,0,'titles reset with the next race');
  assert.equal(snapshot(r).awards.length,0,'and the snapshot clears them');
+});
+
+
+test('next-corner coach finds bounded actionable bends on both circuits',()=>{
+ for(const trackId of TRACK_IDS){
+  useTrack(trackId);
+  let hints=0;
+  for(let i=0;i<96;i++){
+   const hint=nextCornerHint(i/96*TRACK_LENGTH);
+   if(!hint)continue;
+   hints++;
+   assert.ok(hint.distance>=0&&hint.distance<=96,`${trackId} hint stays inside scan window`);
+   assert.ok(['left','right'].includes(hint.direction),`${trackId} hint has a turn direction`);
+   assert.ok(['medium','hard','hairpin'].includes(hint.severity),`${trackId} hint has a readable severity`);
+   assert.ok(hint.curvature>=0.018,`${trackId} hint points at a meaningful bend`);
+  }
+  assert.ok(hints>=20,`${trackId} exposes enough coaching opportunities (${hints})`);
+ }
+ useTrack('bay');
+});
+
+test('next-corner coach reports distance zero while already inside a real corner',()=>{
+ useTrack('bay');
+ let best={s:0,curvature:0};
+ for(let i=0;i<256;i++){
+  const s=i/256*TRACK_LENGTH;
+  const curvature=Math.abs(cornerCurvature(s));
+  if(curvature>best.curvature)best={s,curvature};
+ }
+ assert.ok(best.curvature>0.055,'Bay has a hard corner for the coaching test');
+ const hint=nextCornerHint(best.s);
+ assert.ok(hint);
+ assert.equal(hint.distance,0);
+ assert.ok(hint.severity==='hard'||hint.severity==='hairpin');
+ assert.equal(
+  hint.direction,
+  cornerCurvature(best.s)>0?'left':'right',
+  'turn label follows the driver-frame curvature sign',
+ );
 });

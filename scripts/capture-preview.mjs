@@ -13,17 +13,54 @@ try {
   const info = await fetch(base + '/info').then(r => r.json());
   if (!info?.join) throw new Error('Pilot /info did not expose a join URL.');
 
+  // Establish the phone player first. Two cold software-WebGL contexts can
+  // otherwise contend badly on GitHub runners and delay the second page before
+  // it ever reaches the WebSocket handshake.
+  const phone = await browser.newPage({
+    viewport: { width: 844, height: 390 },
+    deviceScaleFactor: 1,
+  });
+  await phone.goto(base + '/?name=' + encodeURIComponent('预览车手'), {
+    waitUntil: 'domcontentloaded',
+  });
+  await phone.waitForFunction(
+    () => document.body.classList.contains('driving'),
+    null,
+    { timeout: 45_000 },
+  );
+
+  // Start and capture the phone before opening the TV renderer. GitHub's
+  // software WebGL stack is far more reliable when only one heavy Three.js
+  // context is active at a time; this still validates the real authoritative
+  // race and the exact 844×390 phone HUD.
+  const start = await fetch(base + '/api/start', { method: 'POST' });
+  if (!start.ok) throw new Error('POST /api/start failed: ' + start.status);
+
+  await phone.waitForFunction(
+    () => {
+      const coach = document.querySelector('#corner-coach');
+      return document.querySelector('#phase')?.textContent === '比赛进行中' && coach && !coach.hidden;
+    },
+    null,
+    { timeout: 45_000 },
+  );
+  await phone.waitForTimeout(500);
+  await phone.screenshot({
+    path: 'docs/screenshots/phone-driver-hud.png',
+    fullPage: false,
+    timeout: 120_000,
+  });
+  await phone.close();
+
   const display = await browser.newPage({
     viewport: { width: 1280, height: 720 },
     deviceScaleFactor: 1,
   });
   await display.goto(base + '/display', { waitUntil: 'domcontentloaded' });
-  await display.waitForSelector('#game-surface', { timeout: 15_000 });
-  await display.waitForTimeout(4_000);
-
-  const start = await fetch(base + '/api/start', { method: 'POST' });
-  if (!start.ok) throw new Error('POST /api/start failed: ' + start.status);
-
+  await display.waitForSelector('#game-surface', {
+    state: 'attached',
+    timeout: 30_000,
+  });
   await display.waitForFunction(
     () => document.querySelector('#phase')?.textContent === '比赛进行中',
     null,

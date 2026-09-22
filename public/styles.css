@@ -118,7 +118,10 @@ body:not(.spectator) .energy{left:50%;bottom:34px;width:140px;transform:translat
 #drift-tier{color:#dce9ec;font-size:9px}.drift-track{height:5px;margin-top:5px;border-radius:5px;overflow:hidden;background:#071b24cc}#drift-fill{display:block;height:100%;width:0;background:#55d6ff;transition:width .08s linear,background .12s,box-shadow .12s}
 #drift-meter.ready{border-color:#ffe06a88}#drift-meter.ready #drift-tier{color:#ffe06a}#drift-meter.ready #drift-fill{background:#ffe06a;box-shadow:0 0 10px #ffe06aaa}
 #drift-meter.perfect{border-color:#c5f574aa}#drift-meter.perfect #drift-tier{color:#c5f574}#drift-meter.perfect #drift-fill{background:#c5f574;box-shadow:0 0 14px #c5f574}
-@container game (max-height:340px){#drift-meter{bottom:58px;width:145px}.energy{bottom:27px!important}}
+#corner-coach{position:fixed;top:112px;left:50%;transform:translateX(-50%);min-width:170px;max-width:220px;display:flex;align-items:center;justify-content:center;gap:9px;padding:7px 12px;border-radius:12px;background:#102d38b8;border:1px solid #6fc3ff66;box-shadow:0 5px 18px #071a2255;pointer-events:none;text-shadow:0 2px 5px #102a35;z-index:4}
+#corner-coach>span{font-size:20px;line-height:1;color:#9fd9ff}#corner-coach>div{display:flex;flex-direction:column;gap:1px}#corner-title{font-size:11px;letter-spacing:.5px}#corner-tip{font-size:9px;color:#d3e3e8;white-space:nowrap}
+#corner-coach.hard{border-color:#ffe06a88}#corner-coach.hard>span{color:#ffe06a}#corner-coach.apex{border-color:#c5f57499}#corner-coach.apex>span,#corner-coach.apex #corner-title{color:#c5f574}
+@container game (max-height:340px){#corner-coach{top:104px;min-width:156px;padding:6px 10px}#corner-tip{font-size:8px}#drift-meter{bottom:58px;width:145px}.energy{bottom:27px!important}}
 body:not(.spectator) #race-call{top:28%;font-size:64px}
 body:not(.spectator) footer{left:20px;right:20px;bottom:10px;font-size:9px}
 body:not(.spectator) footer #help{display:none}
