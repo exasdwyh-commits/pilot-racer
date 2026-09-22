@@ -90,18 +90,54 @@ export function surfaceDelta(dx, dy, rotated) {
   return rotated ? {x:dy, y:-dx} : {x:dx, y:dy};
 }
 // Track catalogue. Shape is a Fourier ribbon (x/z harmonics of the lap angle);
-// width is a base half-width plus periodic cosine bumps (narrow hairpins,
-// wide start straight). Coefficients were validated numerically: no
-// self-intersection, lap length 700-860, inside the island scenery.
+// width is a base half-width plus periodic cosine bumps. The default bay route
+// is now a ~1.1 km grand-prix loop with distinct braking zones, esses,
+// hairpins, elevation changes and a wide start/finish straight.
 export const TRACKS = {
   bay: {
-    id: 'bay', name: '海湾环线', title: 'BAY GRAND PRIX',
-    cx: { 1: 136, 3: 24, 5: -2.5 }, cz: { 1: 94, 2: 20, 4: 3.2 },
-    halfW: { base: 7.5, bumps: [] },
+    id: 'bay', name: '海湾大奖赛', title: 'BAY GRAND PRIX V2',
+    // 25-point authored route fitted to six Fourier harmonics. Compared with
+    // the original oval it is substantially longer and contains a real
+    // straight -> braking zone -> hairpin -> esses -> climb -> downhill attack.
+    cx: {
+      1: [-14.029, 102.352],
+      2: [-0.443, 20.535],
+      3: [-34.620, 38.727],
+      4: [16.497, -5.712],
+      5: [8.170, 0.362],
+      6: [-2.363, -4.851],
+    },
+    cz: {
+      1: [-127.493, -5.236],
+      2: [-10.069, -5.855],
+      3: [-17.950, -9.755],
+      4: [3.275, 5.165],
+      5: [2.851, -0.648],
+      6: [-0.148, 1.195],
+    },
+    ey: {
+      base: 4.2,
+      bumps: [
+        { at: 0.17, w: 0.12, height: 8 },
+        { at: 0.46, w: 0.14, height: 18 },
+        { at: 0.61, w: 0.08, height: -2.5 },
+        { at: 0.79, w: 0.12, height: 10 },
+      ],
+    },
+    halfW: {
+      base: 7.2,
+      bumps: [
+        { at: 0.0, w: 0.07, depth: 1.8 },
+        { at: 0.285, w: 0.052, depth: -2.7 },
+        { at: 0.53, w: 0.045, depth: -2.2 },
+        { at: 0.715, w: 0.052, depth: -2.6 },
+        { at: 0.87, w: 0.04, depth: -1.4 },
+      ],
+    },
     marks: {
-      bridge: [0.2170395605131668, 0.28725824185566196],
-      tunnel: { from: 0.4851472529117846, to: 0.5617494507399612, step: 5 },
-      lighthouse: { s: 0.09958285717662947, lane: -34 },
+      bridge: [0.405, 0.485],
+      tunnel: { from: 0.665, to: 0.735, step: 6 },
+      lighthouse: { s: 0.105, lane: -31 },
     },
   },
   ridge: {
@@ -203,6 +239,15 @@ export function trackAt(s, lane = 0) {
   const dx = b.x-a.x, dz = b.z-a.z, len = Math.hypot(dx,dz);
   return { x: a.x+(b.x-a.x)*t - dz/len*lane, y: a.y+(b.y-a.y)*t, z: a.z+(b.z-a.z)*t+dx/len*lane, yaw: Math.atan2(dx,dz) };
 }
+
+export function trackFrameAt(s, lane = 0) {
+  const p = trackAt(s, lane);
+  const back = trackAt(s - 1.5, lane);
+  const front = trackAt(s + 1.5, lane);
+  const horizontal = Math.max(1e-6, Math.hypot(front.x - back.x, front.z - back.z));
+  const pitch = -Math.atan2(front.y - back.y, horizontal);
+  return { ...p, pitch };
+}
 // Positive lane is screen-right when the driver looks along the track tangent.
 export function joystickInput(dx, dy, radius) {
   if (![dx,dy,radius].every(Number.isFinite) || radius <= 0) return {x:0,y:0,steer:0};
@@ -230,7 +275,7 @@ function raceConfig(options = {}) {
   const seconds = Number(options.seconds);
   return {
     laps: Number.isInteger(laps) ? clamp(laps, 1, 10) : LAPS,
-    seconds: Number.isFinite(seconds) ? clamp(seconds, 30, 300) : 90,
+    seconds: Number.isFinite(seconds) ? clamp(seconds, 30, 300) : 150,
   };
 }
 export function makeRace(trackId = 'bay', options = {}) {
@@ -241,7 +286,7 @@ export function makeRace(trackId = 'bay', options = {}) {
     duel:null, duelKey:'', duelSince:0, duelUntil:0, duelFlash:0, awards:[],
     highlights:[], highlightId:0,
     boxes:Array.from({length:ITEM_BOXES},(_,i)=>({id:i,slot:i,lane:ITEM_BOX_LANES[i%2],item:0,respawnAt:-Infinity})),
-    entities:[], entityId:0, tick:0 };
+    entities:[], entityId:0, contacts:Object.create(null), tick:0 };
 }
 // Wipe every director/camera decision that belongs to a single race. highlightId
 // deliberately survives: ids must keep increasing across races so clients never
@@ -262,7 +307,7 @@ export function openLobby(race) {
     Object.assign(car, newCar(car.id), { name: car.name, human: car.human, connected: car.connected, ready: false, s, lane, speed: 0, lateral: 0 });
   }
   for (const box of race.boxes) box.respawnAt=-Infinity;
-  race.entities=[];
+  race.entities=[]; race.contacts=Object.create(null);
 }
 export function startRace(race) {
   race.round++; race.phase='countdown'; race.phaseLeft=4; race.remaining=race.seconds; race.events=[];
@@ -270,7 +315,7 @@ export function startRace(race) {
   resetDirector(race); race.focusReason='发车准备';
   for (const car of race.cars) Object.assign(car, newCar(car.id), {name:car.name, human:car.human, connected:car.connected, ready: true});
   for (const box of race.boxes) box.respawnAt=-Infinity;
-  race.entities=[];
+  race.entities=[]; race.contacts=Object.create(null);
 }
 function emit(race, car, text, priority=1) {
   race.events.unshift({id:++race.eventId, car:car.id, text, time:race.time, priority});
@@ -651,6 +696,126 @@ function updateItemBoxes(race) {
     }
   }
 }
+export const CAR_COLLISION_LENGTH = 3.35;
+export const CAR_COLLISION_WIDTH = 1.72;
+export const CAR_COLLISION_RESTITUTION = 0.32;
+export const CAR_COLLISION_COOLDOWN = 0.11;
+
+function signedTrackGap(a, b) {
+  return wrap(a.s - b.s + TRACK_LENGTH / 2, TRACK_LENGTH) - TRACK_LENGTH / 2;
+}
+
+export function aiRacingLane(car) {
+  const laneAmp = 3.9 * clamp((halfWidthAt(car.s) - 2) / 5.5, 0.38, 1);
+  const here = cornerCurvature(car.s + 3);
+  const ahead = cornerCurvature(car.s + 24);
+  const behind = cornerCurvature(car.s - 18);
+  const spread = ((car.id % 4) - 1.5) * 0.34;
+
+  let target = spread;
+  if (Math.abs(here) > 0.018) {
+    target = -Math.sign(here) * laneAmp * 0.72 + spread;
+  } else if (Math.abs(ahead) > 0.02) {
+    target = Math.sign(ahead) * laneAmp * 0.60 + spread;
+  } else if (Math.abs(behind) > 0.02) {
+    target = Math.sign(behind) * laneAmp * 0.46 + spread;
+  } else {
+    target = Math.sin(car.s / 75 + car.id * 1.7) * laneAmp * 0.22 + spread;
+  }
+  return clamp(target, -laneAmp, laneAmp);
+}
+
+export function resolveCarCollisions(race) {
+  if (!race.contacts) race.contacts = Object.create(null);
+
+  for (let i = 0; i < CAPACITY; i++) for (let j = i + 1; j < CAPACITY; j++) {
+    const a = race.cars[i], b = race.cars[j];
+    if (a.finish !== null || b.finish !== null) continue;
+
+    const longGap = signedTrackGap(a, b);
+    const latGap = a.lane - b.lane;
+    const longOverlap = CAR_COLLISION_LENGTH - Math.abs(longGap);
+    const latOverlap = CAR_COLLISION_WIDTH - Math.abs(latGap);
+    if (longOverlap <= 0 || latOverlap <= 0) continue;
+
+    const key = String(i) + ":" + String(j);
+    const canImpulse = race.time >= (race.contacts[key] ?? -Infinity);
+    const sideContact = latOverlap < longOverlap * 0.72 || Math.abs(latGap) > 0.45;
+
+    if (sideContact) {
+      const dir = Math.abs(latGap) > 0.05
+        ? Math.sign(latGap)
+        : ((i + j) % 2 ? 1 : -1);
+      const correction = Math.min(0.62, latOverlap * 0.56 + 0.035);
+      const aw = Math.max(1.2, halfWidthAt(a.s) - 1);
+      const bw = Math.max(1.2, halfWidthAt(b.s) - 1);
+      a.lane = clamp(a.lane + dir * correction * 0.5, -aw, aw);
+      b.lane = clamp(b.lane - dir * correction * 0.5, -bw, bw);
+
+      if (canImpulse) {
+        const va = a.lateral, vb = b.lateral;
+        a.lateral = ((1 - CAR_COLLISION_RESTITUTION) * va + (1 + CAR_COLLISION_RESTITUTION) * vb) * 0.5 + dir * 0.8;
+        b.lateral = ((1 + CAR_COLLISION_RESTITUTION) * va + (1 - CAR_COLLISION_RESTITUTION) * vb) * 0.5 - dir * 0.8;
+
+        if (a.boost > 0 && b.boost <= 0) {
+          b.lateral -= dir * 1.7;
+          b.speed = Math.max(b.speed, a.speed * 0.88);
+        } else if (b.boost > 0 && a.boost <= 0) {
+          a.lateral += dir * 1.7;
+          a.speed = Math.max(a.speed, b.speed * 0.88);
+        } else {
+          a.speed *= 0.985;
+          b.speed *= 0.985;
+        }
+      }
+    } else {
+      const aAhead = longGap >= 0;
+      const front = aAhead ? a : b;
+      const rear = aAhead ? b : a;
+      const correction = Math.min(0.48, longOverlap * 0.18 + 0.025);
+      front.s += correction * 0.5;
+      rear.s -= correction * 0.5;
+
+      if (canImpulse) {
+        const vf = front.speed, vr = rear.speed;
+        if (vr > vf + 0.25) {
+          front.speed =
+            ((1 - CAR_COLLISION_RESTITUTION) * vf +
+              (1 + CAR_COLLISION_RESTITUTION) * vr) * 0.5;
+          rear.speed =
+            ((1 + CAR_COLLISION_RESTITUTION) * vf +
+              (1 - CAR_COLLISION_RESTITUTION) * vr) * 0.5;
+        } else {
+          front.speed *= 0.995;
+          rear.speed *= 0.99;
+        }
+
+        const escape =
+          Math.abs(latGap) > 0.08
+            ? Math.sign(latGap)
+            : ((rear.id + front.id) % 2 ? 1 : -1);
+        rear.lateral -= escape * 0.85;
+        front.lateral += escape * 0.35;
+
+        if (rear.boost > 0 && front.boost <= 0) {
+          front.speed = Math.max(front.speed, rear.speed * 1.06);
+          front.lateral += escape * 1.1;
+        }
+      }
+    }
+
+    if (canImpulse) {
+      race.contacts[key] = race.time + CAR_COLLISION_COOLDOWN;
+      if (race.time - a.incidentAt > 1.4 && race.phase === 'racing') {
+        emit(race, a, '车身碰撞 · 位置争夺', 3);
+        highlight(race, 'car_collision', a, b, 2);
+        a.incidentAt = race.time;
+        b.incidentAt = race.time;
+      }
+    }
+  }
+}
+
 export function stepRace(race, dt) {
   race.time+=dt;
   if (race.phase==='lobby') {
@@ -682,11 +847,10 @@ export function stepRace(race, dt) {
     const ai=!c.human || !c.connected || race.phase==='demo';
     const fresh=race.time-c.inputAt<0.3;
 
-    // AI steering: seeks available item boxes when empty, otherwise follows dynamic line
+    // AI steering: seeks available item boxes when empty, otherwise follows
+    // a real outside-inside-outside racing line.
     const allowAiItems = race.phase === 'demo' || (race.phase === 'racing' && race.cars.some(x => x.human && x.connected));
-    // Narrow sections (hairpins) shrink the racing line amplitude with the road.
-    const laneAmp = 3.8 * clamp((halfWidthAt(c.s) - 2) / 5.5, 0.4, 1);
-    let targetLane = Math.sin(c.s / 43 + c.id * 2) * laneAmp;
+    let targetLane = aiRacingLane(c);
     if (ai && c.item === null && allowAiItems) {
       for (const box of race.boxes) {
         if (box.item !== null && box.item !== undefined) {
@@ -801,20 +965,7 @@ export function stepRace(race, dt) {
     if(race.phase==='racing'&&c.s>=race.laps*TRACK_LENGTH) {c.finish=race.seconds-race.remaining; emit(race,c,'冲过终点',4); highlight(race,'finish_line',c,null,4);}
     if(race.phase==='racing'&&c.finish===null&&c.s>=(race.laps-1)*TRACK_LENGTH&&!c.lastLap) {c.lastLap=true; emit(race,c,'进入最后一圈',3); highlight(race,'last_lap',c,null,2);}
   }
-  for(let i=0;i<CAPACITY;i++) for(let j=i+1;j<CAPACITY;j++) {
-    const a=race.cars[i],b=race.cars[j];
-    if(a.finish!==null||b.finish!==null)continue;
-    const gap=wrap(a.s-b.s+TRACK_LENGTH/2,TRACK_LENGTH)-TRACK_LENGTH/2;
-    if(Math.abs(gap)<3.1&&Math.abs(a.lane-b.lane)<1.8) {
-      const push=(1.8-Math.abs(a.lane-b.lane))*.5;
-      const dir=a.lane>=b.lane?1:-1;
-      a.lane=clamp(a.lane+push*dir,-6.5,6.5);b.lane=clamp(b.lane-push*dir,-6.5,6.5);
-      // Boosting through: positional shove stays, speed loss is waived.
-      if(a.boost<=0) a.speed=Math.max(12,a.speed-1.8);
-      if(b.boost<=0) b.speed=Math.max(12,b.speed-1.8);
-      if(race.time-a.incidentAt>3&&race.phase==='racing'){ emit(race,a,'并排争夺',3); highlight(race,'car_collision',a,b,1); a.incidentAt=race.time; }
-    }
-  }
+  resolveCarCollisions(race);
   const order=ranking(race);
   if(race.phase==='racing') {
     const passer=order.find((c,i)=>before.indexOf(c.id)>i&&c.s>25&&race.time-c.incidentAt>3);
