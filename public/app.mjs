@@ -3279,14 +3279,24 @@ function setTvCamera(trackId, template, car, renderedS, renderedLane = car.lane)
 }
 
 function setHelicopterCamera(car, renderedS, renderedLane) {
-  // Aerial TV shot: stay well behind and outside the selected kart, then look
-  // back at the kart itself. The previous shallow 6m/20m composition often
-  // framed mostly infield on long bends and could lose the actual race.
-  const high = trackAt(renderedS - 24, renderedLane + 16);
-  const target = trackAt(renderedS + 1.5, renderedLane * 0.7);
-  targetCamera.set(high.x, high.y + 30, high.z);
-  look.set(target.x, target.y + 1.15, target.z);
-  camera.fov = 49;
+  // Compose around the actual interpolated kart pose, not a long chord between
+  // two spline samples. Chords cut across the infield on hairpins and used to
+  // put the race outside the aerial frame.
+  const frame = trackFrameAt(renderedS, renderedLane);
+  const yaw = frame.yaw - (car.headingError ?? 0);
+  const fx = Math.sin(yaw), fz = Math.cos(yaw);
+  const rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  targetCamera.set(
+    frame.x - fx * 18 + rx * 11,
+    frame.y + 25,
+    frame.z - fz * 18 + rz * 11,
+  );
+  look.set(
+    frame.x + fx * 3,
+    frame.y + 1.1,
+    frame.z + fz * 3,
+  );
+  camera.fov = 50;
   liveTemplateId = null;
 }
 
@@ -3566,16 +3576,23 @@ function animate(now) {
       setHelicopterCamera(c, g.userData.s, g.userData.lane);
       newCameraKey = `manual:helicopter:${id}`;
     } else {
-      // Manual chase / player third person.
-      const behindLane = g.userData.lane -
-        clamp(Math.tan(heading) * 4.5, -2.5, 2.5);
-      const behind = trackAt(g.userData.s - 9.5, behindLane);
-      targetCamera.set(behind.x, behind.y + 5.0, behind.z);
-      const chaseLane = g.userData.lane +
-        clamp(Math.tan(heading) * 13, -5.5, 5.5);
-      const chaseAhead = trackAt(g.userData.s + 14, chaseLane);
-      look.set(chaseAhead.x, chaseAhead.y + 1, chaseAhead.z);
-      camera.fov = 62 + Math.round(clamp(c.speed / 48, 0, 1) * 4);
+      // Manual chase / player third person. Anchor to the interpolated kart
+      // itself so tight hairpins cannot turn the camera/look chord into an
+      // infield shot with the kart outside frame.
+      const worldYaw = p.yaw - heading;
+      const fx = Math.sin(worldYaw), fz = Math.cos(worldYaw);
+      const rx = Math.cos(worldYaw), rz = -Math.sin(worldYaw);
+      targetCamera.set(
+        p.x - fx * 9.5 + rx * 0.8,
+        p.y + 5.0,
+        p.z - fz * 9.5 + rz * 0.8,
+      );
+      look.set(
+        p.x + fx * 7.5,
+        p.y + 1.15,
+        p.z + fz * 7.5,
+      );
+      camera.fov = 60 + Math.round(clamp(c.speed / 48, 0, 1) * 4);
       newCameraKey = myId === null ? `manual:chase:${id}` : 'player:chase';
     }
 
