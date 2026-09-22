@@ -52,7 +52,7 @@ export const DRIFT_PERFECT_BOOST = 1.05;
 // Hit guard: a short immunity after missile/mine hits, blocks chain stuns.
 export const GUARD_DURATION = 1.0;
 // Camera pacing. A shot is never cut before SHOT_FLOOR has been on screen; a
-// shot *type* (follow/aerial/finish) additionally holds SHOT_KIND_FLOOR so the
+// shot *type* (trackside/aerial/finish) additionally holds SHOT_KIND_FLOOR so the
 // broadcast pans instead of strobing between angles. Crossing the line is
 // exempt: the flag is the one moment that always cuts through.
 export const SHOT_FLOOR = 2.0;
@@ -300,7 +300,7 @@ export function makeRace(trackId = 'bay', options = {}) {
   useTrack(TRACKS[trackId] ? trackId : 'bay');
   const config = raceConfig(options);
   return { trackId: activeTrack.id, laps: config.laps, seconds: config.seconds, cars: Array.from({length:CAPACITY},(_,id)=>newCar(id)), phase:'demo', time:0, remaining:config.seconds, round:0, phaseLeft:0, events:[], eventId:0, focus:0, focusReason:'赛道巡游', focusUntil:0,
-    focusSeverity:0, shot:'follow', shotS:null, shotAt:-Infinity, shotKindAt:-Infinity, pendingShot:null,
+    focusSeverity:0, shot:'trackside', shotS:0, shotAt:-Infinity, shotKindAt:-Infinity, pendingShot:null,
     duel:null, duelKey:'', duelSince:0, duelUntil:0, duelFlash:0, awards:[],
     highlights:[], highlightId:0,
     boxes:Array.from({length:ITEM_BOXES},(_,i)=>({id:i,slot:i,lane:ITEM_BOX_LANES[i%2],item:0,respawnAt:-Infinity})),
@@ -312,7 +312,7 @@ export function makeRace(trackId = 'bay', options = {}) {
 export function resetDirector(race) {
   race.highlights=[];
   race.focus=0; race.focusUntil=0; race.focusSeverity=0;
-  race.shot='follow'; race.shotS=null; race.shotAt=-Infinity; race.shotKindAt=-Infinity; race.pendingShot=null;
+  race.shot='trackside'; race.shotS=0; race.shotAt=-Infinity; race.shotKindAt=-Infinity; race.pendingShot=null;
   race.duel=null; race.duelKey=''; race.duelSince=0; race.duelUntil=0; race.duelFlash=0;
   race.awards=[];
 }
@@ -347,13 +347,32 @@ const SHOT_LABELS={overtake:'超车时刻',overtaken:'被超车',overtake_after_
 function setShot(race,{focus,reason,severity,kind,shotS,until,urgent=false}){
   if(!urgent&&race.time-race.shotAt<SHOT_FLOOR)return false;
   let k=kind;
-  if(k!==race.shot&&!urgent&&race.time-race.shotKindAt<SHOT_KIND_FLOOR)k=race.shot;
+  const insideKindFloor =
+    !urgent &&
+    Number.isFinite(race.shotKindAt) &&
+    race.time-race.shotKindAt<SHOT_KIND_FLOOR;
+  if(k!==race.shot&&insideKindFloor)k=race.shot;
+
+  // A TV station is a real physical camera position, not merely a shot "kind".
+  // While the kind floor is active keep the station anchor frozen even if a new
+  // story changes the subject. The operator may pan to the new car, but the
+  // broadcast must not silently jump to another corner camera.
+  const holdTracksideStation =
+    k==='trackside' &&
+    race.shot==='trackside' &&
+    insideKindFloor &&
+    race.shotS!==null;
+
   // The first shot after a reset starts the kind clock even when the angle does
   // not change, so a reset race is not treated as an infinitely old shot.
   if(k!==race.shot||!Number.isFinite(race.shotKindAt))race.shotKindAt=race.time;
   race.shot=k; race.shotAt=race.time;
   race.focus=focus; race.focusReason=reason; race.focusSeverity=severity; race.focusUntil=until;
-  race.shotS=k==='aerial'?Math.round(clamp(shotS??race.cars[focus].s,0,Infinity)):null;
+  race.shotS=(k==='aerial'||k==='trackside')
+    ? (holdTracksideStation
+      ? race.shotS
+      : Math.round(clamp(shotS??race.cars[focus].s,0,Infinity)))
+    : null;
   return true;
 }
 // Play one highlight. Attack outcomes own the victim's car; everything else owns
@@ -364,9 +383,19 @@ function applyHighlight(race,h){
   const victim=h.targetId!==null?race.cars[h.targetId]:null;
   const impact=victim&&(h.type==='missile_hit'||h.type==='mine_hit'||h.type==='shield_block');
   const star=impact?victim:actor;
-  setShot(race,{focus:star.id,reason:SHOT_LABELS[h.type]??'精彩瞬间',severity:h.severity,
-    kind:h.type==='finish_line'?'finish':(h.severity>=3?'aerial':'follow'),
-    shotS:star.s,until:race.time+3+h.severity,urgent:h.type==='finish_line'});
+  const tacticalAerial =
+    h.type==='missile_hit' ||
+    h.type==='shield_block' ||
+    (h.type==='item_use'&&h.severity>=3);
+  setShot(race,{
+    focus:star.id,
+    reason:SHOT_LABELS[h.type]??'精彩瞬间',
+    severity:h.severity,
+    kind:h.type==='finish_line'?'finish':(tacticalAerial?'aerial':'trackside'),
+    shotS:star.s,
+    until:race.time+3+h.severity,
+    urgent:h.type==='finish_line'
+  });
 }
 // Director arbitration. A highlight claims the camera for a severity-scaled
 // minimum stay; only a strictly higher severity may cut in early, and never
@@ -1168,10 +1197,11 @@ export function stepRace(race, dt) {
   if(race.time>race.focusUntil){
     // Idle director: a live duel outranks a lonely leader, otherwise follow him.
     if(race.duel){
-      setShot(race,{focus:race.duel.ahead,reason:'贴身对决',severity:1,kind:'aerial',
-        shotS:(race.cars[race.duel.a].s+race.cars[race.duel.b].s)/2,until:race.time+3});
+      setShot(race,{focus:race.duel.ahead,reason:'贴身对决',severity:1,kind:'trackside',
+        shotS:(race.cars[race.duel.a].s+race.cars[race.duel.b].s)/2,until:race.time+4});
     } else {
-      setShot(race,{focus:order[0].id,reason:'领跑车手',severity:0,kind:'follow',until:race.time+5});
+      setShot(race,{focus:order[0].id,reason:'领跑车手',severity:0,kind:'trackside',
+        shotS:order[0].s,until:race.time+5});
     }
   }
   race.tick++;

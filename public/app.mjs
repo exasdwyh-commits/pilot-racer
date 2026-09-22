@@ -3,6 +3,13 @@ import { trackAt, trackFrameAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { makeDaylightRig, batchStaticScenery } from './scenery.mjs';
+import {
+  broadcastTemplateById,
+  broadcastTemplates,
+  resolveBroadcastTemplate,
+  nextBroadcastTemplate,
+  broadcastPose,
+} from './broadcast-cameras.mjs';
 
 const $ = id => document.getElementById(id);
 const query = new URLSearchParams(location.search);
@@ -2199,6 +2206,7 @@ const stick = $('joystick'), thumb = $('stick-thumb');
 let boost = false, socket = null, myId = null, seq = 0, state = null, lastStateAt = 0;
 let lastSelfBoost = 0;
 let role = spectator ? 'display' : 'preview', pending = null, manualId = null, auto = true, angle = 0, firstPerson = true;
+let manualTemplateId = null, liveTemplateId = null, cameraCutKey = '';
 let retry = null, round = -1, frameCount = 0, fps = 0, fpsAt = performance.now(), lastUi = 0;
 let perfFrames = 0, perfAt = performance.now();
 let token = '';
@@ -2675,9 +2683,65 @@ if (resReady) resReady.onclick = toggleReady;
 const resLeave = $('results-leave-btn');
 if (resLeave) resLeave.onclick = leaveRoom;
 
-$('auto').onclick = () => { auto = true; $('auto').classList.add('active'); };
-$('next').onclick = () => { auto = false; manualId = ((manualId ?? state?.focus ?? 0) + 1) % 8; $('auto').classList.remove('active'); };
-$('angle').onclick = () => { angle = (angle + 1) % 3; $('angle').textContent = `镜头 · ${['追踪', '全景', '侧拍'][angle]}`; };
+function setDirectorManual() {
+  auto = false;
+  $('auto').classList.remove('active');
+}
+function updateAngleButton() {
+  $('angle').textContent = `镜头 · ${['赛道机位', '追踪车', '直升机'][angle]}`;
+}
+function chooseTemplate(delta) {
+  if (!state) return;
+  setDirectorManual();
+  angle = 0;
+  const focusId = manualId ?? state.focus ?? 0;
+  const car = state.cars[focusId];
+  const current = manualTemplateId
+    ? broadcastTemplateById(state.trackId, manualTemplateId)
+    : resolveBroadcastTemplate(state.trackId, car.s);
+  manualTemplateId = nextBroadcastTemplate(state.trackId, current?.id, delta).id;
+  updateAngleButton();
+}
+$('auto').onclick = () => {
+  auto = true;
+  manualTemplateId = null;
+  $('auto').classList.add('active');
+};
+$('next').onclick = () => {
+  setDirectorManual();
+  manualId = ((manualId ?? state?.focus ?? 0) + 1) % 8;
+  manualTemplateId = null;
+};
+$('angle').onclick = () => {
+  setDirectorManual();
+  angle = (angle + 1) % 3;
+  if (angle !== 0) manualTemplateId = null;
+  updateAngleButton();
+};
+$('camera-prev')?.addEventListener('click', () => chooseTemplate(-1));
+$('camera-next')?.addEventListener('click', () => chooseTemplate(1));
+updateAngleButton();
+
+if (spectator) addEventListener('keydown', event => {
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+  if (event.code === 'KeyA') {
+    $('auto').click();
+  } else if (event.code === 'KeyN') {
+    $('next').click();
+  } else if (event.code === 'BracketLeft') {
+    chooseTemplate(-1);
+  } else if (event.code === 'BracketRight') {
+    chooseTemplate(1);
+  } else if (event.code === 'Digit1' || event.code === 'Digit2' || event.code === 'Digit3') {
+    setDirectorManual();
+    angle = Number(event.code.slice(-1)) - 1;
+    manualTemplateId = null;
+    updateAngleButton();
+  } else {
+    return;
+  }
+  event.preventDefault();
+});
 $('view').onclick = () => { firstPerson = !firstPerson; $('view').textContent = `视角 · ${firstPerson ? '第一人称' : '追尾'}`; };
 $('fullscreen').onclick = async () => {
   try {
@@ -3066,7 +3130,14 @@ function ui(now) {
 
   const focus = state.cars[auto ? state.focus : manualId ?? 0];
   $('focus-name').textContent = focus.name;
-  $('focus-reason').textContent = auto ? state.focusReason : '手动跟随';
+  const stationLabel = liveTemplateId
+    ? broadcastTemplateById(state.trackId, liveTemplateId)?.label
+    : null;
+  $('focus-reason').textContent = auto
+    ? `${state.focusReason}${stationLabel ? ' · ' + stationLabel : ''}`
+    : `自由导播${stationLabel ? ' · ' + stationLabel : ''}`;
+  const stationEl = $('camera-station');
+  if (stationEl) stationEl.textContent = stationLabel || (auto ? 'AUTO' : 'FREE');
   // Name tags: live rank + nickname, redrawn only on change; hide own tag
   // in first person.
   const tagKeys = [];
@@ -3172,6 +3243,24 @@ const targetCamera = new THREE.Vector3();
 const look = new THREE.Vector3();
 const smoothLook = new THREE.Vector3();
 let cameraInit = false;
+
+function setTvCamera(trackId, template, car, renderedS, renderedLane = car.lane) {
+  const pose = broadcastPose(trackId, template, renderedS, renderedLane);
+  targetCamera.set(pose.camera.x, pose.camera.y, pose.camera.z);
+  look.set(pose.look.x, pose.look.y, pose.look.z);
+  camera.fov = pose.fov;
+  liveTemplateId = pose.id;
+  return pose.id;
+}
+
+function setHelicopterCamera(car, renderedS, renderedLane) {
+  const high = trackAt(renderedS - 6, renderedLane + 9);
+  const target = trackAt(renderedS + 10, renderedLane * 0.5);
+  targetCamera.set(high.x, high.y + 20, high.z);
+  look.set(target.x, target.y + 1, target.z);
+  camera.fov = 54;
+  liveTemplateId = null;
+}
 
 function animate(now) {
   requestAnimationFrame(animate);
@@ -3379,48 +3468,77 @@ function animate(now) {
       clamp(Math.tan(heading) * 18, -6.5, 6.5);
     const ahead = trackAt(g.userData.s + 18, noseLane);
 
+    let newCameraKey = 'player';
+    liveTemplateId = null;
+
     if (myId !== null && firstPerson) {
-      // Driver camera looks through the actual kart nose. During a drift the
-      // road visibly moves sideways across the windshield instead of the
-      // camera remaining glued to the centreline.
+      // Driver camera looks through the actual kart nose.
       targetCamera.set(p.x, p.y + 1.7, p.z);
       look.set(ahead.x, ahead.y + 1.5, ahead.z);
       camera.fov = 72 + (c.boost > 0 || c.draftBoost > 0 ? 8 : 0);
-    } else if (myId === null && angle === 1) {
-      // Spectator Panoramic High View
-      targetCamera.set(10, 220, 180);
-      look.set(0, 0, 0);
-      camera.fov = 58;
-    } else if (myId === null && angle === 2) {
-      // Spectator Side Action Track View
-      const side = trackAt(g.userData.s - 4, 24);
-      targetCamera.set(side.x, side.y + 7, side.z);
-      look.set(p.x, p.y + 1, p.z);
-      camera.fov = 58;
+      newCameraKey = 'player:cockpit';
+    } else if (myId === null && auto && state.shot === 'finish') {
+      // Fixed finish-line television station. The camera does not chase the
+      // winner; it pans through the gantry like a real finish-line operator.
+      const gridId = state.trackId === 'ridge' ? 'ridge-grid' : 'bay-grid';
+      const template = broadcastTemplateById(state.trackId, gridId) ||
+        resolveBroadcastTemplate(state.trackId, 0);
+      const templateId = setTvCamera(state.trackId, template, c, g.userData.s);
+      camera.fov = Math.min(camera.fov, 46);
+      newCameraKey = `auto:finish:${templateId}`;
     } else if (myId === null && auto && state.shot === 'aerial' && state.shotS !== null) {
-      // Action Combat Shot: If an active missile is homing in, frame both missile & target!
-      const activeMissile = state.entities?.find(e => e.alive !== false && e.kind === 'missile' && e.targetId !== null);
+      // Tactical aerial is reserved for missile/EMP moments. Everything else
+      // stays on the circuit's authored TV stations.
+      const activeMissile = state.entities?.find(e =>
+        e.alive !== false && e.kind === 'missile' && e.targetId !== null
+      );
       if (activeMissile && state.cars[activeMissile.targetId]) {
         const victim = state.cars[activeMissile.targetId];
         const mp = trackAt(activeMissile.s, activeMissile.lane);
         const vp = trackAt(victim.s, victim.lane);
-        targetCamera.set((mp.x + vp.x) / 2 + 14, Math.max(mp.y, vp.y) + 13, (mp.z + vp.z) / 2 + 12);
+        targetCamera.set(
+          (mp.x + vp.x) / 2 + 14,
+          Math.max(mp.y, vp.y) + 13,
+          (mp.z + vp.z) / 2 + 12,
+        );
         look.set(vp.x, vp.y + 1, vp.z);
         camera.fov = 56;
       } else {
-        const over = trackAt(state.shotS, 13);
-        targetCamera.set(over.x, over.y + 15, over.z);
-        look.set(p.x, p.y + 1, p.z);
-        camera.fov = 57;
+        setHelicopterCamera(c, state.shotS, g.userData.lane);
       }
-    } else if (myId === null && auto && state.shot === 'finish') {
-      // Finish Line Vantage Shot: low angle in front of finish line looking back at oncoming cars!
-      const finishGantry = trackAt(8, 4.5);
-      targetCamera.set(finishGantry.x, finishGantry.y + 3.2, finishGantry.z);
-      look.set(p.x, p.y + 1, p.z);
-      camera.fov = 54;
+      newCameraKey = `auto:aerial:${state.focus}`;
+    } else if (myId === null && auto) {
+      // TV mode: freeze the camera station at shot start (shotS) while the
+      // camera pans with the selected car. Crossing a sector boundary therefore
+      // does not silently cut to another station.
+      const stationS = state.shotS ?? g.userData.s;
+      const template = resolveBroadcastTemplate(state.trackId, stationS);
+      let targetS = g.userData.s;
+      let targetLane = g.userData.lane;
+      if (state.duel && state.focusReason === '贴身对决') {
+        const da = state.cars[state.duel.a];
+        const db = state.cars[state.duel.b];
+        if (da && db) {
+          const gap = wrap(db.s - da.s + TRACK_LENGTH / 2, TRACK_LENGTH) - TRACK_LENGTH / 2;
+          targetS = da.s + gap * 0.5;
+          targetLane = (da.lane + db.lane) * 0.5;
+        }
+      }
+      const templateId = setTvCamera(state.trackId, template, c, targetS, targetLane);
+      newCameraKey = `auto:trackside:${templateId}`;
+    } else if (myId === null && !auto && angle === 0) {
+      // Free director: either lock a chosen station or automatically use the
+      // selected driver's current sector.
+      const template = manualTemplateId
+        ? broadcastTemplateById(state.trackId, manualTemplateId)
+        : resolveBroadcastTemplate(state.trackId, g.userData.s);
+      const templateId = setTvCamera(state.trackId, template, c, g.userData.s);
+      newCameraKey = `manual:station:${templateId}`;
+    } else if (myId === null && !auto && angle === 2) {
+      setHelicopterCamera(c, g.userData.s, g.userData.lane);
+      newCameraKey = `manual:helicopter:${id}`;
     } else {
-      // Third-Person Chase Camera: kept tight so the car owns the frame.
+      // Manual chase / player third person.
       const behindLane = g.userData.lane -
         clamp(Math.tan(heading) * 4.5, -2.5, 2.5);
       const behind = trackAt(g.userData.s - 9.5, behindLane);
@@ -3430,6 +3548,7 @@ function animate(now) {
       const chaseAhead = trackAt(g.userData.s + 14, chaseLane);
       look.set(chaseAhead.x, chaseAhead.y + 1, chaseAhead.z);
       camera.fov = 62 + Math.round(clamp(c.speed / 48, 0, 1) * 4);
+      newCameraKey = myId === null ? `manual:chase:${id}` : 'player:chase';
     }
 
     // Ground clearance safety clamp
@@ -3448,17 +3567,30 @@ function animate(now) {
       targetCamera.y += (Math.random() - 0.5) * wob;
     }
 
-    // Smooth Damping (Smooth Slerp/Lerp Transition)
+    // Television stations CUT between cameras; they do not fly through the
+    // scenery. Inside one station only the pan target eases. Chase/helicopter
+    // cameras retain normal damping.
+    const cut = newCameraKey !== cameraCutKey;
+    cameraCutKey = newCameraKey;
     const alpha = myId !== null && firstPerson ? 1 : 1 - Math.exp(-dt * 4.8);
-    if (!cameraInit) {
+    if (!cameraInit || cut) {
       camera.position.copy(targetCamera);
       smoothLook.copy(look);
       cameraInit = true;
+    } else {
+      camera.position.lerp(targetCamera, alpha);
+      smoothLook.lerp(look, alpha);
     }
-    camera.position.lerp(targetCamera, alpha);
-    smoothLook.lerp(look, alpha);
     camera.lookAt(smoothLook);
     camera.updateProjectionMatrix();
+    try {
+      window.__broadcastCamera = {
+        mode:auto ? 'auto' : 'free',
+        shot:auto ? state.shot : ['station','chase','helicopter'][angle],
+        templateId:liveTemplateId,
+        focus:id,
+      };
+    } catch {}
   } else {
     camera.position.set(160, 140, 185);
     camera.lookAt(0, 0, 0);
