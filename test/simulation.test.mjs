@@ -172,6 +172,43 @@ test('hairpin scrubs speed, straights stay flat, drift raises the cap',()=>{
   assert.ok(d.speed > 30,`straight holds full speed (got ${d.speed.toFixed(1)})`);
   useTrack('bay');
 });
+test('steering creates authoritative heading and lateral motion instead of pure lane sliding',()=>{
+  const r=makeRace('bay');r.phase='racing';settle(r);
+  for(const other of r.cars.slice(1))other.finish=1;
+  const c=r.cars[0];c.s=40;c.lane=0;c.speed=30;let seq=0;
+  for(let i=0;i<18;i++){
+    applyInput(c,{seq:++seq,steer:.8,drift:false,boost:false,brake:false},r.time);
+    stepRace(r,1/30);
+  }
+  assert.ok(c.headingError>0.08,`body has a real heading angle (${c.headingError.toFixed(3)})`);
+  assert.ok(c.lane>0.5,`heading generates road-relative lateral travel (${c.lane.toFixed(2)}m)`);
+  assert.ok(Number.isFinite(c.slipAngle),'tyre slip is finite');
+  const snap=snapshot(r).cars[0];
+  assert.ok('headingError' in snap&&'slipAngle' in snap,'heading/slip ship to render clients');
+});
+test('drift develops a larger slip angle than grip steering and settles when steering is released',()=>{
+  const run=(drift)=>{
+    const r=makeRace('bay');r.phase='racing';settle(r);
+    for(const other of r.cars.slice(1))other.finish=1;
+    const c=r.cars[0];c.s=45;c.lane=0;c.speed=30;let seq=0;
+    for(let i=0;i<18;i++){
+      applyInput(c,{seq:++seq,steer:.9,drift,boost:false,brake:false},r.time);
+      stepRace(r,1/30);
+    }
+    return {r,c,seq};
+  };
+  const grip=run(false),drift=run(true);
+  assert.ok(
+    Math.abs(drift.c.slipAngle)>Math.abs(grip.c.slipAngle)+0.02,
+    `drift slip ${drift.c.slipAngle.toFixed(3)} vs grip ${grip.c.slipAngle.toFixed(3)}`,
+  );
+  const before=Math.abs(drift.c.headingError);
+  for(let i=0;i<45;i++){
+    applyInput(drift.c,{seq:++drift.seq,steer:0,drift:false,boost:false,brake:false},drift.r.time);
+    stepRace(drift.r,1/30);
+  }
+  assert.ok(Math.abs(drift.c.headingError)<before*.35,'car naturally straightens after steering release');
+});
 test('high speed desensitizes steering response',()=>{
   useTrack('bay');
   const run = (speed) => {
