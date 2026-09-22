@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { trackAt, trackFrameAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput, landscapeSurface, surfaceDelta, ITEM_DEFS, ITEM_BOXES, ITEM_BOX_LANES, SMOKE_RADIUS, JUMP_DURATION, JUMP_HEIGHT, useTrack, TRACKS, halfWidthAt, currentMarks, currentTrackFeatures, pylonAt, PYLON_COUNT } from './simulation.mjs';
+import { trackAt, trackFrameAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput, landscapeSurface, surfaceDelta, ITEM_DEFS, ITEM_BOXES, ITEM_BOX_LANES, SMOKE_RADIUS, JUMP_DURATION, JUMP_HEIGHT, useTrack, TRACKS, halfWidthAt, currentMarks, currentTrackFeatures, pylonAt, PYLON_COUNT, nextCornerHint } from './simulation.mjs';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { makeDaylightRig, batchStaticScenery } from './scenery.mjs';
@@ -3288,6 +3288,32 @@ function ui(now) {
       $('drift-tier').textContent = stage === 2 ? '完美 · 松手喷射' : stage === 1 ? '小喷就绪' : '蓄力中';
       $('drift-fill').style.width = `${Math.round(clamp((c.driftCharge || 0) / 0.72, 0, 1) * 100)}%`;
     }
+
+    const cornerCoach = $('corner-coach');
+    if (cornerCoach) {
+      const hint = state.phase === 'racing' && c.finish === null ? nextCornerHint(c.s) : null;
+      cornerCoach.hidden = !hint;
+      if (hint) {
+        const nearApex = hint.distance <= 4;
+        const turnName = hint.direction === 'right' ? '右弯' : '左弯';
+        $('corner-arrow').textContent = hint.direction === 'right' ? '▶' : '◀';
+        $('corner-title').textContent = `${turnName} · ${nearApex ? '弯中' : `${hint.distance}m`}`;
+        let tip = '外线准备 · 看弯心';
+        if (nearApex) {
+          tip = c.driftStage >= 1 ? '切弯心 · 松手喷射' : '切弯心 · 按住漂移';
+        } else if (hint.distance <= 22) {
+          tip = '外线入弯 · 准备漂移';
+        } else if ((hint.severity === 'hairpin' || hint.severity === 'hard') && hint.distance <= 52) {
+          tip = '外线入弯 · 先减速';
+        }
+        $('corner-tip').textContent = tip;
+        cornerCoach.classList.toggle('hard', hint.severity === 'hairpin' || hint.severity === 'hard');
+        cornerCoach.classList.toggle('apex', nearApex);
+      } else {
+        cornerCoach.classList.remove('hard', 'apex');
+      }
+    }
+
     const b = document.querySelector('[data-control="boost"]');
     if (b) b.style.opacity = c.energy >= 30 ? '1' : '0.5';
 
