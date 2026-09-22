@@ -4,9 +4,11 @@ import { trackAt, halfWidthAt, cornerCurvature, TRACK_LENGTH, currentMarks, clam
 // Appearance only. No route, collision, ranking or item positions are authored here.
 export const SCENERY_ZONES = Object.freeze({
   bay: [
-    { from: .15, to: .21, shade: .27, name: '彩帆码头', kind: 'sails' },
-    { from: .485, to: .562, shade: .38, name: '海崖拱廊', kind: 'tunnel' },
-    { from: .80, to: .88, shade: .23, name: '棕榈海岸', kind: 'grove' },
+    { from: .09, to: .16, shade: .23, name: '滨海高速段', kind: 'sails' },
+    { from: .25, to: .34, shade: .28, name: '港湾发卡', kind: 'canyon' },
+    { from: .405, to: .49, shade: .25, name: '跨海爬升桥', kind: 'sails' },
+    { from: .665, to: .735, shade: .40, name: '岩壁隧道', kind: 'tunnel' },
+    { from: .79, to: .88, shade: .24, name: '下坡连续弯', kind: 'grove' },
   ],
   ridge: [
     { from: .22, to: .36, shade: .29, name: '赤岩发卡', kind: 'canyon' },
@@ -160,6 +162,30 @@ export function buildSceneryKit(trackId, parent, { box, cylinder, board, materia
     const face = board(g, 0, 3, 0, 3.8, 2.1, `${bend > 0 ? '‹' : '›'} ${Math.abs(bend) > .07 ? '急弯' : '弯道'}`, Math.PI, '#ffc756', '#342d24');
     face.geometry.dispose(); face.geometry = warningGeo;
   }
+  // Motorsport-style 150/100/50 braking boards before the hardest corners.
+  // These are visual cues only; physics still comes entirely from curvature.
+  let previousBrakeApex = -200;
+  for (let apex = 40; apex < TRACK_LENGTH - 30; apex += 10) {
+    const bend = cornerCurvature(apex);
+    if (Math.abs(bend) < .055 || apex - previousBrakeApex < 90) continue;
+    previousBrakeApex = apex;
+    const outside = Math.sign(bend) || 1;
+    for (const marker of [
+      { back: 48, text: '150' },
+      { back: 32, text: '100' },
+      { back: 16, text: '50' },
+    ]) {
+      const s = apex - marker.back;
+      const p = trackAt(s, outside * (halfWidthAt(s) + 2.8));
+      const g = new THREE.Group();
+      g.position.set(p.x, p.y, p.z);
+      g.rotation.y = p.yaw;
+      group.add(g);
+      cylinder(g, 0, 1.2, 0, .08, .10, 2.4, '#263c43', 6, false);
+      board(g, 0, 2.25, 0, 1.65, 1.15, marker.text, Math.PI, '#f5f1e8', '#18232a');
+    }
+  }
+
   // Broad, feathered road shade remains in low tier when shadow maps are off.
   // One vertex-color ribbon; alpha encodes zones. No extra textures/downloads.
   const shadePositions = [], shadeColors = [], shadeIndices = [];
