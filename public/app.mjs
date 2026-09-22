@@ -83,7 +83,12 @@ try {
 // ---------------------------------------------------------------------------
 // Quality Tiers & PCF Soft Shadows (手机画质自适应与一键切换)
 // ---------------------------------------------------------------------------
-let quality = spectator ? 'high' : 'high';
+let quality = 'high';
+let qualityLocked = spectator;
+let qualityAutoDowngraded = false;
+let lowFpsSeconds = 0;
+const LOW_FPS_THRESHOLD = 42;
+const LOW_FPS_SECONDS = 5;
 function applyQuality() {
   const isHigh = quality === 'high';
   renderer.shadowMap.enabled = isHigh;
@@ -93,7 +98,7 @@ function applyQuality() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, spectator ? 1.5 : (isHigh ? 1.25 : 1.0)));
   renderer.setSize(layout.width, layout.height, false);
   const qBtn = $('quality-toggle');
-  if (qBtn) qBtn.textContent = `画质 · ${isHigh ? '高清' : '节能'}`;
+  if (qBtn) qBtn.textContent = qualityAutoDowngraded ? '画质 · 节能（自动）' : `画质 · ${isHigh ? '高清' : '节能'}`;
 }
 applyQuality();
 
@@ -519,6 +524,9 @@ $('audio-toggle').onclick = () => {
   $('audio-toggle').textContent = `音效 · ${on ? '开' : '关'}`;
 };
 $('quality-toggle').onclick = () => {
+  qualityLocked = true;
+  qualityAutoDowngraded = false;
+  lowFpsSeconds = 0;
   quality = quality === 'high' ? 'low' : 'high';
   applyQuality();
   applyVisualQuality();
@@ -2233,7 +2241,7 @@ let lastSelfBoost = 0;
 let role = spectator ? 'display' : 'preview', pending = null, manualId = null, auto = true, angle = 0, firstPerson = true;
 let manualTemplateId = null, liveTemplateId = null, cameraCutKey = '';
 let retry = null, round = -1, frameCount = 0, fps = 0, fpsAt = performance.now(), lastUi = 0;
-let perfFrames = 0, perfAt = performance.now();
+let perfFrames = 0, perfAt = performance.now(), networkRtt = null;
 let token = '';
 
 try {
@@ -2258,6 +2266,10 @@ function connect() {
   ws.onmessage = async ev => {
     if (socket !== ws) return;
     const m = JSON.parse(ev.data);
+    if (m.type === 'probe') {
+      if (Number.isSafeInteger(m.nonce)) networkRtt = Math.max(0, Date.now() - m.nonce);
+      return;
+    }
     if (m.type === 'error') { error(m.message); $('join-form').querySelector('button').disabled = false; return; }
     if (m.type === 'left') {
       userExited = true;
@@ -2519,6 +2531,13 @@ addEventListener('keydown', e => {
 });
 
 setInterval(sendInput, 50);
+
+// Venue diagnostics: measure application-level LAN round-trip time without
+// touching the authoritative simulation or increasing snapshot payload size.
+setInterval(() => {
+  if (socket?.readyState !== WebSocket.OPEN || !role) return;
+  socket.send(JSON.stringify({ v: 1, type: 'probe', nonce: Date.now() }));
+}, 2000);
 
 function resetStick() {
   const oldPointer = stickPointer;
@@ -3075,7 +3094,8 @@ function ui(now) {
   }
 
   const stale = now - lastStateAt > 1000;
-  $('connection').textContent = stale ? '画面同步中断 · 正在恢复' : `● ${role === 'player' ? '已连接 · 你的独立驾驶视角' : '直播已连接'} · ${fps} FPS`;
+  const rttText = Number.isFinite(networkRtt) ? ` · ${networkRtt}ms` : '';
+  $('connection').textContent = stale ? '画面同步中断 · 正在恢复' : `● ${role === 'player' ? '已连接 · 你的独立驾驶视角' : '直播已连接'} · ${fps} FPS${rttText}`;
   $('help').textContent = role === 'player' ? (navigator.maxTouchPoints > 0 ? '摇杆转向 · 漂移蓄能 · 氮气加速' : '方向键 / A D 转向 · Shift 漂移 · 空格氮气') : '海湾环线 · 高画质导播版';
   $('phase').textContent = { demo: 'AI 赛道巡游', lobby: '大厅报名中', countdown: '准备发车', racing: '比赛进行中', result: '比赛结束' }[state.phase] ?? state.phase;
   const t = Math.ceil(state.remaining);
@@ -3375,6 +3395,19 @@ function animate(now) {
     fps = Math.round(frameCount * 1000 / (now - fpsAt));
     fpsAt = now;
     frameCount = 0;
+    // Phones start in high quality, then fail soft if a real race stays below
+    // the target for several consecutive seconds. Manual quality selection
+    // always wins and spectators never auto-downgrade.
+    if (!spectator && !qualityLocked && state?.phase === 'racing' && now - lastStateAt < 1000) {
+      lowFpsSeconds = fps < LOW_FPS_THRESHOLD ? lowFpsSeconds + 1 : Math.max(0, lowFpsSeconds - 1);
+      if (quality === 'high' && lowFpsSeconds >= LOW_FPS_SECONDS) {
+        quality = 'low';
+        qualityAutoDowngraded = true;
+        lowFpsSeconds = 0;
+        applyQuality();
+        applyVisualQuality();
+      }
+    }
   }
 
   // 1. Dynamic Environmental Animations: slow daylight, water shimmer,
@@ -3726,6 +3759,9 @@ function animate(now) {
         tris: renderer.info.render.triangles,
         geos: renderer.info.memory.geometries,
         tex: renderer.info.memory.textures,
+        quality,
+        autoQuality: qualityAutoDowngraded,
+        rtt: networkRtt,
       };
       perfFrames = 0;
       perfAt = now;
