@@ -35,6 +35,7 @@ const files = new Map([
   ['/vendor/three.module.js',['node_modules/three/build/three.module.js','text/javascript']],
   ['/vendor/three.core.js',['node_modules/three/build/three.core.js','text/javascript']],
   ['/vendor/examples/jsm/loaders/GLTFLoader.js',['node_modules/three/examples/jsm/loaders/GLTFLoader.js','text/javascript']],
+  ['/vendor/examples/jsm/environments/RoomEnvironment.js',['node_modules/three/examples/jsm/environments/RoomEnvironment.js','text/javascript']],
   ['/vendor/examples/jsm/utils/BufferGeometryUtils.js',['node_modules/three/examples/jsm/utils/BufferGeometryUtils.js','text/javascript']],
   ['/vendor/examples/jsm/utils/SkeletonUtils.js',['node_modules/three/examples/jsm/utils/SkeletonUtils.js','text/javascript']],
   ['/audio/bgm-race.mp3',['public/audio/bgm-race.mp3','audio/mpeg']],
