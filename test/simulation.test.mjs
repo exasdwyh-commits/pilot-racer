@@ -769,4 +769,9 @@ test('next-corner coach reports distance zero while already inside a real corner
  assert.ok(hint);
  assert.equal(hint.distance,0);
  assert.ok(hint.severity==='hard'||hint.severity==='hairpin');
+ assert.equal(
+  hint.direction,
+  cornerCurvature(best.s)>0?'left':'right',
+  'turn label follows the driver-frame curvature sign',
+ );
 });
