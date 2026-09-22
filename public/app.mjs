@@ -3296,15 +3296,16 @@ function ui(now) {
       if (hint) {
         const nearApex = hint.distance <= 4;
         const turnName = hint.direction === 'right' ? '右弯' : '左弯';
+        const outside = hint.direction === 'right' ? '左侧' : '右侧';
         $('corner-arrow').textContent = hint.direction === 'right' ? '▶' : '◀';
         $('corner-title').textContent = `${turnName} · ${nearApex ? '弯中' : `${hint.distance}m`}`;
-        let tip = '外线准备 · 看弯心';
+        let tip = `${outside}准备 · 看弯心`;
         if (nearApex) {
           tip = c.driftStage >= 1 ? '切弯心 · 松手喷射' : '切弯心 · 按住漂移';
         } else if (hint.distance <= 22) {
-          tip = '外线入弯 · 准备漂移';
+          tip = `${outside}入弯 · 准备漂移`;
         } else if ((hint.severity === 'hairpin' || hint.severity === 'hard') && hint.distance <= 52) {
-          tip = '外线入弯 · 先减速';
+          tip = `${outside}入弯 · 先减速`;
         }
         $('corner-tip').textContent = tip;
         cornerCoach.classList.toggle('hard', hint.severity === 'hairpin' || hint.severity === 'hard');
