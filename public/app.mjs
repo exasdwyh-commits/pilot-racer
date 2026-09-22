@@ -2002,7 +2002,7 @@ for (let id = 0; id < 8; id++) {
   const tagTex = new THREE.CanvasTexture(tagCanvas);
   tagTex.colorSpace = THREE.SRGBColorSpace;
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, transparent: true, depthWrite: false }));
-  tag.scale.set(3.4, 1.28, 1);
+  tag.scale.set(2.45, 0.92, 1);
   tag.renderOrder = 20;
   scene.add(tag);
   g.userData.nameTag = tag;
@@ -3163,19 +3163,68 @@ function ui(now) {
     : `自由导播${stationLabel ? ' · ' + stationLabel : ''}`;
   const stationEl = $('camera-station');
   if (stationEl) stationEl.textContent = stationLabel || (auto ? 'AUTO' : 'FREE');
-  // Name tags: live rank + nickname, redrawn only on change; hide own tag
-  // in first person.
+  // Broadcast name tags are editorial graphics, not permanent world UI.
+  // Showing all eight at once made chase/aerial shots unreadable, especially
+  // at starts and restarts. During live racing, keep the focus car plus the
+  // two nearest relevant rivals; aerial shots are even stricter and show only
+  // the focus/active duel. Lobby/result states can still show the full grid.
   const tagKeys = [];
+  const tagVisibleIds = new Set();
+  const tagFocusId = auto ? state.focus : (manualId ?? state.focus ?? 0);
+  tagVisibleIds.add(tagFocusId);
+
+  if (spectator && (state.phase === 'racing' || state.phase === 'countdown')) {
+    if (state.duel && (
+      state.duel.a === tagFocusId ||
+      state.duel.b === tagFocusId
+    )) {
+      tagVisibleIds.add(state.duel.a);
+      tagVisibleIds.add(state.duel.b);
+    }
+
+    if (!(!auto && angle === 2)) {
+      const focusCar = state.cars[tagFocusId];
+      const nearby = state.cars
+        .filter(car => car.id !== tagFocusId && car.finish === null)
+        .map(car => {
+          const d = wrap(
+            car.s - focusCar.s + TRACK_LENGTH / 2,
+            TRACK_LENGTH,
+          ) - TRACK_LENGTH / 2;
+          return { id: car.id, gap: Math.abs(d) };
+        })
+        .sort((a, b) => a.gap - b.gap)
+        .slice(0, 2);
+      for (const rival of nearby) tagVisibleIds.add(rival.id);
+    }
+  }
+
   for (let id = 0; id < 8; id++) {
     const tag = carMeshes[id].userData.nameTag;
     if (!tag) continue;
-    tag.visible = !(myId === id && firstPerson && role === 'player');
+    const ownFirstPerson = myId === id && firstPerson && role === 'player';
+    const liveTvCull =
+      spectator &&
+      (state.phase === 'racing' || state.phase === 'countdown') &&
+      !tagVisibleIds.has(id);
+    tag.visible = !ownFirstPerson && !liveTvCull;
+
+    const focused = id === tagFocusId;
+    const scale = spectator
+      ? (focused ? 2.45 : 1.85)
+      : 2.1;
+    tag.scale.set(scale, scale * 0.376, 1);
+    tag.material.opacity = focused ? 0.98 : 0.84;
+
     const rank = state.order.indexOf(id) + 1;
     const key = `${rank}|${state.cars[id].name}`;
     if (tag.userData.key !== key) drawNameTag(tag, id, state.cars[id].name, rank);
     tagKeys.push(tag.userData.key);
   }
-  try { window.__tagKeys = tagKeys; } catch {}
+  try {
+    window.__tagKeys = tagKeys;
+    window.__visibleTagIds = [...tagVisibleIds];
+  } catch {}
   // Focus gap readout: nearest unfinished rivals ahead/behind, wrap-aware.
   {
     const gapEl = $('focus-gap');

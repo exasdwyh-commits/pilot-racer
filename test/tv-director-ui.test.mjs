@@ -35,3 +35,12 @@ test('free director exposes driver, shot-style and station controls', () => {
   assert.match(app, /KeyN/);
   assert.match(app, /赛道机位/);
 });
+
+test('live TV nameplates follow the active story instead of covering the whole grid', () => {
+  assert.match(app, /const tagVisibleIds = new Set\(\)/);
+  assert.match(app, /tagVisibleIds\.add\(tagFocusId\)/);
+  assert.match(app, /slice\(0, 2\)/);
+  assert.match(app, /!\(!auto && angle === 2\)/);
+  assert.match(app, /window\.__visibleTagIds/);
+  assert.match(app, /focused \? 2\.45 : 1\.85/);
+});
