@@ -138,3 +138,24 @@ test('display can switch tracks in lobby; racing and players cannot',async t=>{
   await new Promise(ok=>setTimeout(ok,20));
   assert.equal(p.race.trackId,'ridge','mid-race switch ignored');
 });
+
+
+test('venue diagnostics expose runtime config and round-trip probes', async t => {
+  const p = await createPilot({host:'127.0.0.1', port:0, manual:true});
+  t.after(() => p.close());
+  const info = await fetch(`http://127.0.0.1:${p.port}/info`).then(r => r.json());
+  assert.equal(info.protocol, 'pilot-racer/1');
+  assert.equal(info.trackId, p.race.trackId);
+  assert.equal(info.laps, p.race.laps);
+  assert.equal(info.seconds, p.race.seconds);
+  assert.equal(info.phase, p.race.phase);
+
+  const display = client(p.port);
+  await display.open;
+  display.send({type:'hello', role:'display'});
+  await display.next('welcome');
+  const nonce = Date.now();
+  display.send({type:'probe', nonce});
+  const probe = await display.next('probe');
+  assert.equal(probe.nonce, nonce);
+});
