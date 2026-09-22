@@ -632,7 +632,9 @@ export function nextCornerHint(s, maxDistance = 96) {
 
   if (entryDistance === null) return null;
   return {
-    direction: sign > 0 ? 'right' : 'left',
+    // Positive curvature bends toward negative lane (screen-left), because
+    // positive lane is defined as screen-right in the driver frame.
+    direction: sign > 0 ? 'left' : 'right',
     distance: entryDistance,
     severity: peak >= 0.055 ? 'hairpin' : peak >= 0.035 ? 'hard' : 'medium',
     curvature: Math.round(peak * 1000) / 1000,
