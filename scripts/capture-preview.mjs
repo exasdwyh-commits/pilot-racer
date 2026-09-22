@@ -24,7 +24,12 @@ try {
   const start = await fetch(base + '/api/start', { method: 'POST' });
   if (!start.ok) throw new Error('POST /api/start failed: ' + start.status);
 
-  await display.waitForTimeout(6_500);
+  await display.waitForFunction(
+    () => document.querySelector('#phase')?.textContent === '比赛进行中',
+    null,
+    { timeout: 30_000 },
+  );
+  await display.waitForTimeout(1_500);
 
   await display.screenshot({
     path: 'docs/screenshots/tv-auto-director.png',
@@ -32,17 +37,18 @@ try {
     timeout: 120_000,
   });
 
-  await display.locator('#next').click();
-  await display.locator('#camera-next').click();
+  // Manual chase is the most useful second acceptance frame: it proves the
+  // selected kart remains readable at speed without depending on a car being
+  // inside one particular fixed station sector at capture time.
+  await display.keyboard.press('Digit2');
   await display.waitForTimeout(1_200);
   await display.screenshot({
-    path: 'docs/screenshots/tv-free-director.png',
+    path: 'docs/screenshots/tv-chase-camera.png',
     fullPage: false,
     timeout: 120_000,
   });
 
-  await display.locator('#angle').click();
-  await display.locator('#angle').click();
+  await display.keyboard.press('Digit3');
   await display.waitForTimeout(1_200);
   await display.screenshot({
     path: 'docs/screenshots/tv-helicopter.png',
@@ -51,7 +57,7 @@ try {
   });
 
   const directorState = await display.evaluate(() => window.__broadcastCamera ?? null);
-  if (!directorState || !['free', 'auto'].includes(directorState.mode)) {
+  if (!directorState || directorState.mode !== 'free' || directorState.shot !== 'helicopter') {
     throw new Error('Broadcast camera debug state was not populated.');
   }
   const modelState = await display.evaluate(() => window.__pilotKartModels ?? {});
