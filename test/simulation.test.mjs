@@ -653,7 +653,7 @@ test('director: severity owns the camera, the shot floor delays a cut, finish al
  const leader=[...r2.cars].sort((x,y)=>y.s-x.s)[0];
  assert.equal(r2.focus,leader.id,'idle director follows the leader');
  assert.equal(r2.focusReason,'领跑车手');
- assert.equal(r2.shot,'follow');assert.equal(r2.shotS,null);
+ assert.equal(r2.shot,'trackside');assert.ok(r2.shotS!==null,'idle TV station freezes a map position');
 });
 test('shot kind floor holds the angle while the subject still moves',()=>{
  const r=makeRace();r.phase='racing';settle(r);
@@ -663,14 +663,14 @@ test('shot kind floor holds the angle while the subject still moves',()=>{
  park(a,200);a.speed=0;park(b,240);b.speed=0;park(c2,60,.3);c2.speed=0;park(d,60,0);d.speed=0;
  stepRace(r,1/30);
  assert.ok(r.highlights.some(h=>h.type==='car_collision'),'a minor event opens the show');
- assert.equal(r.shot,'follow','a low severity stays on the chase camera');
+ assert.equal(r.shot,'trackside','a low severity stays on an authored circuit camera');
  const kindAt=r.shotKindAt;
  for(let i=0;i<74;i++)stepRace(r,1/30);
  assert.ok(r.time-r.shotAt>SHOT_FLOOR&&r.time-kindAt<SHOT_KIND_FLOOR,'inside the kind floor, past the shot floor');
  const fire=()=>{a.item='emp';a.useAt=-Infinity;a.empUntil=-Infinity;useItem(r,a,r.time);stepRace(r,1/30);};
  fire();
  assert.ok(r.highlights.some(h=>h.type==='item_use'),'a severity-3 event arrives');
- assert.equal(r.shot,'follow','the angle holds inside SHOT_KIND_FLOOR');
+ assert.equal(r.shot,'trackside','the authored circuit angle holds inside SHOT_KIND_FLOOR');
  assert.equal(r.focus,a.id,'...while the subject still moves to the new event');
  assert.equal(r.shotKindAt,kindAt,'the kind clock did not restart');
  for(let i=0;i<30;i++)stepRace(r,1/30);
