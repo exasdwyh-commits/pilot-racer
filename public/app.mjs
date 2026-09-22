@@ -464,6 +464,7 @@ $('audio-toggle').onclick = () => {
 $('quality-toggle').onclick = () => {
   quality = quality === 'high' ? 'low' : 'high';
   applyQuality();
+  applyVisualQuality();
 };
 
 // ---------------------------------------------------------------------------
@@ -865,6 +866,17 @@ const roadMaterial = new THREE.MeshStandardMaterial({
   envMapIntensity: 0.45,
   side: THREE.DoubleSide,
 });
+
+function applyVisualQuality() {
+  const high = quality === 'high';
+  roadMaterial.normalMap = high ? roadNormal : null;
+  roadMaterial.needsUpdate = true;
+  waterMat.normalMap = high ? waterNormal : null;
+  waterMat.clearcoat = high ? 1 : 0.45;
+  waterMat.needsUpdate = true;
+  scene.environmentIntensity = spectator ? 0.9 : (high ? 0.72 : 0.52);
+}
+applyVisualQuality();
 
 /** (Re)build all track-following scenery for the active simulation track. */
 function buildTrackScenery(trackId) {
