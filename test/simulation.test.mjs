@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {makeRace,startRace,openLobby,stepRace,applyInput,useItem,snapshot,trackAt,trackFrameAt,TRACK_LENGTH,LAPS,SHOT_FLOOR,SHOT_KIND_FLOOR,ranking,ITEM_BOXES,ITEM_IDS,HIGHLIGHT_TYPES,MISSILE_LOCK_RANGE,TRACKS,TRACK_IDS,useTrack,currentTrackId,halfWidthAt,cornerCurvature,racingLineFactor,GRIP_LIMIT,pylonAt,PYLON_COUNT,rollPickup,aiRacingLane,resolveCarCollisions} from '../public/simulation.mjs';
+import {makeRace,startRace,openLobby,stepRace,applyInput,useItem,snapshot,trackAt,trackFrameAt,TRACK_LENGTH,LAPS,SHOT_FLOOR,SHOT_KIND_FLOOR,ranking,ITEM_BOXES,ITEM_IDS,HIGHLIGHT_TYPES,MISSILE_LOCK_RANGE,TRACKS,TRACK_IDS,useTrack,currentTrackId,currentTrackFeatures,halfWidthAt,cornerCurvature,racingLineFactor,GRIP_LIMIT,pylonAt,PYLON_COUNT,rollPickup,aiRacingLane,resolveCarCollisions} from '../public/simulation.mjs';
 test('closed elevated track is continuous at seam',()=>{const a=trackAt(0),b=trackAt(TRACK_LENGTH-.001);assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<.01);assert.ok(TRACK_LENGTH>500);});
 test('Bay GP V2 is a long technical lap with real elevation and safe road width',()=>{
  useTrack('bay');
@@ -28,6 +28,49 @@ test('AI racing line stays on road and changes side through technical corners',(
   assert.ok(Math.abs(lane)<=halfWidthAt(c.s)-1+0.01,'AI target stays inside collision wall');
  }
  assert.ok(Math.min(...lanes)<-1&&Math.max(...lanes)>1,'AI uses both sides of the circuit');
+});
+test('Bay GP skill routes reward deliberate boost-pad and ramp lines',()=>{
+ useTrack('bay');
+ const features=currentTrackFeatures();
+ assert.equal(features.boostPads.length,3);
+ assert.equal(features.ramps.length,1);
+
+ const pad=features.boostPads[0];
+ const r=makeRace('bay');r.phase='racing';settle(r);
+ for(const other of r.cars.slice(1))other.finish=1;
+ const c=r.cars[0];c.s=pad.at*TRACK_LENGTH-.5;c.lane=pad.lane;c.speed=20;
+ stepRace(r,1/30);
+ assert.ok(c.boost>0.6,'aligned kart receives route boost');
+ assert.equal(c.featureKind,'boost-pad');
+
+ const r2=makeRace('bay');r2.phase='racing';settle(r2);
+ for(const other of r2.cars.slice(1))other.finish=1;
+ const d=r2.cars[0];d.s=pad.at*TRACK_LENGTH-.5;d.lane=pad.lane+3.2;d.speed=20;
+ stepRace(r2,1/30);
+ assert.equal(d.featureKind,null,'missing the strip gives no free reward');
+
+ const ramp=features.ramps[0];
+ const r3=makeRace('bay');r3.phase='racing';settle(r3);
+ for(const other of r3.cars.slice(1))other.finish=1;
+ const e=r3.cars[0];e.s=ramp.at*TRACK_LENGTH-.5;e.lane=ramp.lane;e.speed=28;
+ stepRace(r3,1/30);
+ assert.ok(e.jumpUntil>r3.time,'bridge ramp launches the kart');
+ assert.equal(e.featureKind,'ramp');
+});
+test('slipstream charges in a wake then releases an overtaking burst',()=>{
+ const r=makeRace('bay');r.phase='racing';settle(r);
+ for(const other of r.cars.slice(2))other.finish=1;
+ const follower=r.cars[0],leader=r.cars[1];
+ follower.s=20;leader.s=33;follower.lane=leader.lane=0;follower.speed=leader.speed=28;
+ for(let i=0;i<36;i++)stepRace(r,1/30);
+ assert.ok(follower.drafting,'follower is in the wake');
+ assert.ok(follower.draftCharge>=1,'wake reaches full charge');
+ follower.lane=4;
+ stepRace(r,1/30);
+ assert.ok(follower.draftBoost>0.8,'leaving the wake releases the pass boost');
+ assert.equal(follower.featureKind,'draft-release');
+ const snap=snapshot(r).cars[0];
+ assert.ok('draftCharge' in snap&&'draftBoost' in snap,'phone receives drafting state');
 });
 test('race settings configure track, laps and time limit and survive rematches',()=>{
  const r=makeRace('ridge',{laps:5,seconds:60});

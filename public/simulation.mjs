@@ -139,6 +139,16 @@ export const TRACKS = {
       tunnel: { from: 0.665, to: 0.735, step: 6 },
       lighthouse: { s: 0.105, lane: -31 },
     },
+    features: {
+      boostPads: [
+        { at: 0.118, lane: 3.0, width: 1.7, boost: 0.78 },
+        { at: 0.515, lane: -2.6, width: 1.6, boost: 0.82 },
+        { at: 0.835, lane: 2.7, width: 1.7, boost: 0.82 },
+      ],
+      ramps: [
+        { at: 0.462, lane: 0, width: 2.2, duration: 0.92 },
+      ],
+    },
   },
   ridge: {
     id: 'ridge', name: '山脊赛道', title: 'RIDGE GRAND PRIX',
@@ -169,6 +179,7 @@ export const TRACKS = {
       tunnel: { from: 0.68, to: 0.78, step: 5 },
       lighthouse: { x: 150, y: 0.7, z: 0 },
     },
+    features: { boostPads: [], ramps: [] },
   },
 };
 export const TRACK_IDS = Object.keys(TRACKS);
@@ -220,6 +231,9 @@ export function currentTrackId() { return activeTrack.id; }
 export function currentTrackTitle() { return activeTrack.title; }
 /** Landmark placement for the active track (fractions of lap, or fixed point). */
 export function currentMarks() { return activeTrack.marks; }
+export function currentTrackFeatures() {
+  return activeTrack.features ?? { boostPads: [], ramps: [] };
+}
 /** Half road width at arc position s (smooth, periodic). */
 export function halfWidthAt(s) {
   const t = wrap(s, TRACK_LENGTH) / TRACK_LENGTH;
@@ -265,6 +279,9 @@ export function newCar(id) {
     empUntil: -Infinity, shieldUntil: -Infinity, spinUntil: -Infinity, spinAge: 0,
     jumpUntil: -Infinity, itemEventAt: -Infinity, misfireAt: -Infinity, lastLap: false,
     tractorUntil: -Infinity, tractorTarget: null, trailPity: 0,
+    draftCharge: 0, drafting: false, draftBoost: 0,
+    padCooldownUntil: -Infinity, rampCooldownUntil: -Infinity,
+    featureEventAt: -1, featureKind: null,
     driftTime: 0, driftCharge: 0, guardUntil: -Infinity,
     // Per-race award counters; reset with the car, read by computeAwards.
     stats: { hits:0, blocks:0, overtakes:0, boostOvertakes:0, pityPeak:0 },
@@ -529,6 +546,13 @@ export const ENGINE_ACCEL = 11.5;
 export const BOOST_ACCEL = 21;
 export const COAST_DECEL = 5.5;
 export const BRAKE_DECEL = 27;
+export const DRAFT_MIN_GAP = 7;
+export const DRAFT_MAX_GAP = 26;
+export const DRAFT_LANE = 1.9;
+export const DRAFT_CHARGE_TIME = 1.05;
+export const DRAFT_WAKE_TOP_SPEED = 37;
+export const DRAFT_RELEASE_TOP_SPEED = 41;
+export const DRAFT_RELEASE_SECONDS = 0.95;
 // Static traffic pylons: indestructible track furniture. Positions are a pure
 // function of the track so client and server always agree (see pylonAt).
 export const PYLON_COUNT = 7;
@@ -702,6 +726,89 @@ function updateItemBoxes(race) {
     }
   }
 }
+function featureGap(carS, featureS) {
+  return wrap(featureS - carS + TRACK_LENGTH / 2, TRACK_LENGTH) - TRACK_LENGTH / 2;
+}
+
+function updateTrackFeatures(race, car) {
+  const features = currentTrackFeatures();
+
+  for (const pad of features.boostPads) {
+    const s = pad.at * TRACK_LENGTH;
+    if (
+      race.time >= car.padCooldownUntil &&
+      Math.abs(featureGap(car.s, s)) < 1.7 &&
+      Math.abs(car.lane - pad.lane) <= pad.width
+    ) {
+      car.boost = Math.max(car.boost, pad.boost);
+      car.padCooldownUntil = race.time + 1.25;
+      car.featureEventAt = race.time;
+      car.featureKind = 'boost-pad';
+      if (race.phase === 'racing') emit(race, car, '压中极速带', 2);
+    }
+  }
+
+  for (const ramp of features.ramps) {
+    const s = ramp.at * TRACK_LENGTH;
+    if (
+      race.time >= car.rampCooldownUntil &&
+      car.jumpUntil <= race.time &&
+      Math.abs(featureGap(car.s, s)) < 1.8 &&
+      Math.abs(car.lane - ramp.lane) <= ramp.width
+    ) {
+      car.jumpUntil = race.time + ramp.duration;
+      car.rampCooldownUntil = race.time + 1.4;
+      car.featureEventAt = race.time;
+      car.featureKind = 'ramp';
+      car.boost = Math.max(car.boost, 0.36);
+      if (race.phase === 'racing') emit(race, car, '桥面飞跃', 3);
+    }
+  }
+}
+
+function updateDraft(race, car, dt) {
+  if (car.finish !== null || car.jumpUntil > race.time) {
+    car.drafting = false;
+    car.draftCharge = Math.max(0, car.draftCharge - dt * 2);
+    car.draftBoost = Math.max(0, car.draftBoost - dt);
+    return;
+  }
+
+  let wake = null;
+  let bestGap = Infinity;
+  for (const other of race.cars) {
+    if (other.id === car.id || other.finish !== null) continue;
+    const gap = featureGap(car.s, other.s);
+    if (
+      gap >= DRAFT_MIN_GAP &&
+      gap <= DRAFT_MAX_GAP &&
+      Math.abs(other.lane - car.lane) <= DRAFT_LANE &&
+      gap < bestGap
+    ) {
+      wake = other;
+      bestGap = gap;
+    }
+  }
+
+  const hadWake = car.drafting;
+  const charged = car.draftCharge >= DRAFT_CHARGE_TIME * 0.92;
+  car.draftBoost = Math.max(0, car.draftBoost - dt);
+
+  if (wake) {
+    car.drafting = true;
+    car.draftCharge = Math.min(DRAFT_CHARGE_TIME, car.draftCharge + dt);
+  } else {
+    car.drafting = false;
+    if (hadWake && charged) {
+      car.draftBoost = Math.max(car.draftBoost, DRAFT_RELEASE_SECONDS);
+      car.featureEventAt = race.time;
+      car.featureKind = 'draft-release';
+      if (race.phase === 'racing') emit(race, car, '尾流弹射 · 发起超车', 3);
+    }
+    car.draftCharge = Math.max(0, car.draftCharge - dt * 1.8);
+  }
+}
+
 export const CAR_COLLISION_LENGTH = 3.35;
 export const CAR_COLLISION_WIDTH = 1.72;
 export const CAR_COLLISION_RESTITUTION = 0.32;
@@ -857,6 +964,15 @@ export function stepRace(race, dt) {
     // a real outside-inside-outside racing line.
     const allowAiItems = race.phase === 'demo' || (race.phase === 'racing' && race.cars.some(x => x.human && x.connected));
     let targetLane = aiRacingLane(c);
+    if (ai && c.boost <= 0 && Math.abs(cornerCurvature(c.s + 12)) < 0.045) {
+      for (const pad of currentTrackFeatures().boostPads) {
+        const fwd = wrap(pad.at * TRACK_LENGTH - c.s, TRACK_LENGTH);
+        if (fwd > 3 && fwd < 42) {
+          targetLane = pad.lane;
+          break;
+        }
+      }
+    }
     if (ai && c.item === null && allowAiItems) {
       for (const box of race.boxes) {
         if (box.item !== null && box.item !== undefined) {
@@ -934,13 +1050,22 @@ export function stepRace(race, dt) {
         }
       }
     }
-    const target=(c.boost>0?BOOST_TOP_SPEED:BASE_TOP_SPEED+(ai?c.id*.16:0)) *
+    updateTrackFeatures(race, c);
+    updateDraft(race, c, dt);
+
+    const naturalTop = c.draftBoost > 0
+      ? DRAFT_RELEASE_TOP_SPEED
+      : c.drafting && c.draftCharge >= DRAFT_CHARGE_TIME
+        ? DRAFT_WAKE_TOP_SPEED
+        : BASE_TOP_SPEED + (ai ? c.id * .16 : 0);
+    const target=(c.boost>0?BOOST_TOP_SPEED:naturalTop) *
       slowFactor(c,race.time) * dollySlowFactor(c,race.time);
     const braking=!ai&&fresh&&c.brake;
     if(braking) {
       c.speed=Math.max(0,c.speed-BRAKE_DECEL*dt);
     } else if(c.speed<target) {
-      c.speed=Math.min(target,c.speed+(c.boost>0?BOOST_ACCEL:ENGINE_ACCEL)*dt);
+      const draftAccel = c.draftBoost > 0 ? 7 : c.drafting ? 2.5 : 0;
+      c.speed=Math.min(target,c.speed+(c.boost>0?BOOST_ACCEL:ENGINE_ACCEL+draftAccel)*dt);
     } else {
       c.speed=Math.max(target,c.speed-COAST_DECEL*dt);
     }
@@ -1026,5 +1151,7 @@ export function snapshot(race) {
       steer:Math.round(c.steer*1000)/1000,guardUntil:c.guardUntil,item:c.item,itemEventAt:c.itemEventAt,
       slowUntil:c.slowUntil,slowSpinUntil:c.slowSpinUntil,empUntil:c.empUntil,shieldUntil:c.shieldUntil,
       spinUntil:c.spinUntil,spinAge:c.spinAge,jumpUntil:c.jumpUntil,
+      draftCharge:c.draftCharge,drafting:c.drafting,draftBoost:c.draftBoost,
+      featureEventAt:c.featureEventAt,featureKind:c.featureKind,
       useAt:c.useAt,empBlock:c.empUntil>race.time}))};
 }
