@@ -27,10 +27,18 @@ try {
     isMobile: true,
     hasTouch: true,
   });
-  await phone.goto(info.join, { waitUntil: 'domcontentloaded' });
-  await phone.waitForSelector('#join-form', { timeout: 10_000 });
-  await phone.locator('#name').fill('Preview Driver');
-  await phone.locator('#join-form button').click();
+  await phone.goto(base + '/?code=' + encodeURIComponent(info.code), { waitUntil: 'domcontentloaded' });
+  await phone.waitForSelector('#join-form', { state: 'attached', timeout: 10_000 });
+  // The player page deliberately rotates its logical surface in some mobile
+  // viewport combinations. Submit through the real DOM event so visual CSS
+  // transforms do not make Playwright misclassify the form as "not visible".
+  await phone.evaluate(() => {
+    const input = document.querySelector('#name');
+    const form = document.querySelector('#join-form');
+    input.value = 'Preview Driver';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  });
   await phone.waitForFunction(() => document.body.classList.contains('driving'), null, {
     timeout: 10_000,
   });
