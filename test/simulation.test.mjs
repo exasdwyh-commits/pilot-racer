@@ -665,12 +665,17 @@ test('shot kind floor holds the angle while the subject still moves',()=>{
  assert.ok(r.highlights.some(h=>h.type==='car_collision'),'a minor event opens the show');
  assert.equal(r.shot,'trackside','a low severity stays on an authored circuit camera');
  const kindAt=r.shotKindAt;
+ const stationS=r.shotS;
  for(let i=0;i<74;i++)stepRace(r,1/30);
  assert.ok(r.time-r.shotAt>SHOT_FLOOR&&r.time-kindAt<SHOT_KIND_FLOOR,'inside the kind floor, past the shot floor');
+ // Move the new story to another sector. The focus may change, but a physical
+ // TV station must stay bolted to the previous corner until the kind floor ends.
+ a.s=TRACK_LENGTH*.72;
  const fire=()=>{a.item='emp';a.useAt=-Infinity;a.empUntil=-Infinity;useItem(r,a,r.time);stepRace(r,1/30);};
  fire();
  assert.ok(r.highlights.some(h=>h.type==='item_use'),'a severity-3 event arrives');
  assert.equal(r.shot,'trackside','the authored circuit angle holds inside SHOT_KIND_FLOOR');
+ assert.equal(r.shotS,stationS,'the physical trackside station anchor stays frozen while it pans');
  assert.equal(r.focus,a.id,'...while the subject still moves to the new event');
  assert.equal(r.shotKindAt,kindAt,'the kind clock did not restart');
  for(let i=0;i<30;i++)stepRace(r,1/30);
