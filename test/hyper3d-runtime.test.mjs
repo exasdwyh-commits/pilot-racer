@@ -32,11 +32,18 @@ test('02-08 Hyper3D runtime karts are local, compact and renderable', () => {
   }
 });
 
-test('race client installs Hyper3D shells without changing authoritative simulation', () => {
+test('race client assigns a real GLB to all eight slots without changing authoritative simulation', () => {
   const app = readFileSync(new URL('../public/app.mjs', import.meta.url), 'utf8');
   const simulation = readFileSync(new URL('../public/simulation.mjs', import.meta.url), 'utf8');
+  assert.ok(app.includes('crimson-kart-parts-candidate.glb'), '01 uses the retained split Hyper3D kart');
   for (const filename of MODELS) assert.ok(app.includes(filename), `${filename} is assigned to a race slot`);
+  for (const filename of MODELS) {
+    const source = filename.replace('.glb', '-shaded.glb');
+    assert.ok(app.includes(source), `${source} is a committed source fallback when runtime output is absent`);
+  }
   assert.match(app, /if \(playerId !== null\) return loadRuntimeKart\(playerId\)/, 'phones load only their own kart');
   assert.match(app, /using procedural fallback/, 'a failed GLB keeps the procedural kart');
+  assert.match(app, /steer_front_xpos/, 'split kart can reuse authored front steering pivots');
+  assert.match(app, /wheel_rear_xneg/, 'split kart can reuse authored wheel spin pivots');
   assert.ok(!simulation.includes('KART_MODEL_FILES'), 'model URLs do not enter simulation state');
 });
