@@ -21,28 +21,6 @@ try {
   await display.waitForSelector('#game-surface', { timeout: 15_000 });
   await display.waitForTimeout(4_000);
 
-  const phone = await browser.newPage({
-    viewport: { width: 844, height: 390 },
-    deviceScaleFactor: 1,
-    isMobile: true,
-    hasTouch: true,
-  });
-  await phone.goto(base + '/?code=' + encodeURIComponent(info.code), { waitUntil: 'domcontentloaded' });
-  await phone.waitForSelector('#join-form', { state: 'attached', timeout: 10_000 });
-  // The player page deliberately rotates its logical surface in some mobile
-  // viewport combinations. Submit through the real DOM event so visual CSS
-  // transforms do not make Playwright misclassify the form as "not visible".
-  await phone.evaluate(() => {
-    const input = document.querySelector('#name');
-    const form = document.querySelector('#join-form');
-    input.value = 'Preview Driver';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  });
-  await phone.waitForFunction(() => document.body.classList.contains('driving'), null, {
-    timeout: 10_000,
-  });
-
   const start = await fetch(base + '/api/start', { method: 'POST' });
   if (!start.ok) throw new Error('POST /api/start failed: ' + start.status);
 
@@ -66,12 +44,6 @@ try {
   await display.waitForTimeout(1_200);
   await display.screenshot({
     path: 'docs/screenshots/tv-helicopter.png',
-    fullPage: true,
-  });
-
-  await phone.waitForTimeout(1_000);
-  await phone.screenshot({
-    path: 'docs/screenshots/phone-race.png',
     fullPage: true,
   });
 
