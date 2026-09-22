@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { trackAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput, landscapeSurface, surfaceDelta, ITEM_DEFS, ITEM_BOXES, ITEM_BOX_LANES, SMOKE_RADIUS, JUMP_DURATION, JUMP_HEIGHT, useTrack, TRACKS, halfWidthAt, currentMarks, pylonAt, PYLON_COUNT } from './simulation.mjs';
+import { trackAt, trackFrameAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput, landscapeSurface, surfaceDelta, ITEM_DEFS, ITEM_BOXES, ITEM_BOX_LANES, SMOKE_RADIUS, JUMP_DURATION, JUMP_HEIGHT, useTrack, TRACKS, halfWidthAt, currentMarks, pylonAt, PYLON_COUNT } from './simulation.mjs';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const $ = id => document.getElementById(id);
@@ -1519,7 +1519,7 @@ for (let id = 0; id < 8; id++) {
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.85, 20), new THREE.MeshBasicMaterial({ color: '#102228', transparent: true, opacity: 0.35, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2;
   shadow.scale.set(0.85, 1.45, 1);
-  shadow.position.y = 0.045;
+  shadow.position.y = 0.012;
   g.add(shadow);
   g.userData.shadow = shadow;
 
@@ -1831,7 +1831,7 @@ function installRuntimeKart(id, source) {
   const center = scaledBox.getCenter(new THREE.Vector3());
   model.position.x -= center.x;
   model.position.z -= center.z;
-  model.position.y += 0.08 - scaledBox.min.y;
+  model.position.y += 0.018 - scaledBox.min.y;
 
   addRuntimePilot(body, id);
   const skin = SKINS[id];
@@ -2971,15 +2971,20 @@ function animate(now) {
       g.userData.lane += (c.lane - g.userData.lane) * Math.min(1, dt * 15);
       const jumpLeft = Math.max(0, c.jumpUntil - t);
       const hop = jumpLeft > 0 ? Math.sin((1 - jumpLeft / JUMP_DURATION) * Math.PI) * JUMP_HEIGHT : 0;
-      const p = trackAt(g.userData.s, g.userData.lane);
+      const p = trackFrameAt(g.userData.s, g.userData.lane);
 
-      g.position.set(p.x, p.y + 0.04 + hop, p.z);
-      if (g.userData.nameTag) g.userData.nameTag.position.set(p.x, p.y + 2.95 + hop, p.z);
-      g.userData.shadow.position.y = 0.045 - hop * 0.9;
+      g.position.set(p.x, p.y + 0.015 + hop, p.z);
+      g.rotation.x = p.pitch;
+      if (g.userData.nameTag) g.userData.nameTag.position.set(p.x, p.y + 2.92 + hop, p.z);
+      // Cancel the parent jump so the contact shadow remains on the asphalt.
+      g.userData.shadow.position.y = 0.012 - hop;
       g.userData.shadow.scale.setScalar(Math.max(0.5, 1 - hop * 0.18));
 
       // 3. Dynamic Mechanical Wheel Rigging: Turning + Spinning
-      const steerInput = c.human ? (Number.isFinite(c.steer) ? c.steer : 0) : clamp((Math.sin(c.s / 43 + c.id * 2) * 3.8 - c.lane) * 0.65, -1, 1);
+      // AI wheels now follow the actual lateral velocity instead of a fake sine.
+      const steerInput = c.human
+        ? (Number.isFinite(c.steer) ? c.steer : 0)
+        : clamp((c.lateral || 0) / 8, -1, 1);
       if (g.userData.frontPivots) {
         for (const pivot of g.userData.frontPivots) {
           pivot.rotation.y = steerInput * 0.44;
