@@ -12,7 +12,7 @@ const CAMERA_MAPS = {
     { id:'bay-hairpin', label:'港湾发卡', at:0.292, from:0.205, to:0.365, lane:-18, height:8.2, fov:50, style:'corner', lookLead:0 },
     { id:'bay-bridge', label:'跨海爬升桥', at:0.445, from:0.365, to:0.505, lane:18, height:14, fov:46, style:'high-trackside', lookLead:2 },
     { id:'bay-midfield', label:'中段高速切线', at:0.565, from:0.505, to:0.645, lane:-22, height:8.5, fov:43, style:'longlens', lookLead:8 },
-    { id:'bay-tunnel', label:'岩壁隧道出口', at:0.735, from:0.645, to:0.775, lane:18, height:12.5, fov:43, style:'exit', lookLead:11 },
+    { id:'bay-tunnel', label:'岩壁隧道出口', at:0.785, from:0.645, to:0.775, lane:24, height:13, fov:46, style:'high-trackside', lookLead:0 },
     { id:'bay-downhill', label:'下坡连续弯', at:0.835, from:0.775, to:0.915, lane:-23, height:12, fov:48, style:'corner', lookLead:3 },
     { id:'bay-final', label:'终点冲刺段', at:0.945, from:0.915, to:0.965, lane:20, height:6.5, fov:39, style:'longlens', lookLead:14 },
   ],
@@ -22,7 +22,7 @@ const CAMERA_MAPS = {
     { id:'ridge-hairpin', label:'东北发卡', at:0.31, from:0.225, to:0.405, lane:-16, height:9, fov:52, style:'corner', lookLead:0 },
     { id:'ridge-crest', label:'山顶平台', at:0.465, from:0.405, to:0.555, lane:18, height:13, fov:47, style:'high-trackside', lookLead:4 },
     { id:'ridge-esses', label:'西侧连续弯', at:0.65, from:0.555, to:0.755, lane:-20, height:10, fov:50, style:'corner', lookLead:2 },
-    { id:'ridge-tunnel', label:'山体隧道口', at:0.75, from:0.705, to:0.825, lane:15, height:7, fov:41, style:'exit', lookLead:10 },
+    { id:'ridge-tunnel', label:'山体隧道口', at:0.80, from:0.705, to:0.825, lane:21, height:12, fov:45, style:'high-trackside', lookLead:0 },
     { id:'ridge-descent', label:'下山加速段', at:0.86, from:0.825, to:0.955, lane:22, height:9, fov:42, style:'longlens', lookLead:12 },
   ],
 };
