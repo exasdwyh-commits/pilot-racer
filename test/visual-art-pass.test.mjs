@@ -15,6 +15,8 @@ test('visual art pass activates the dormant lighting and PBR pipeline', () => {
   assert.match(app, /normalMap:\s*waterNormal/);
   assert.match(app, /waterNormal\.offset\.x/);
   assert.match(app, /batchStaticScenery\(trackGroup\)/);
+  assert.match(app, /sunTarget\.position\.lerp/);
+  assert.match(app, /shadowRange = spectator \? 165 : 95/);
   assert.match(server, /environments\/RoomEnvironment\.js/);
 });
 
@@ -31,4 +33,6 @@ test('quality pipeline keeps graceful fallbacks instead of making art assets a s
   assert.match(app, /hyper3d-source-fallback/);
   assert.match(app, /using procedural fallback/);
   assert.match(app, /customMaterial \|\| material/);
+  assert.match(app, /heroBonnet\.visible = myId !== null/);
+  assert.match(app, /piece\.visible = false/);
 });
