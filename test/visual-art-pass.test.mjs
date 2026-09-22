@@ -16,6 +16,9 @@ test('visual art pass activates the dormant lighting and PBR pipeline', () => {
   assert.match(app, /waterNormal\.offset\.x/);
   assert.match(app, /batchStaticScenery\(trackGroup\)/);
   assert.match(app, /sunTarget\.position\.lerp/);
+  assert.match(app, /const skyDome = new THREE\.Mesh/);
+  assert.match(app, /skyUniforms\.sunDirection/);
+  assert.match(app, /toneMappingExposure = 1\.2 - daylightBlend \* 0\.07/);
   assert.match(app, /shadowRange = spectator \? 165 : 95/);
   assert.match(server, /environments\/RoomEnvironment\.js/);
 });
