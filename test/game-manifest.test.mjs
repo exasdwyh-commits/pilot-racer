@@ -32,3 +32,7 @@ assert.equal(manifest.runtime.port, 9010);
 assert.equal(manifest.runtime.healthProtocol, "pilot-racer/1");
 assert.ok(Array.isArray(manifest.settings));
 assert.ok(Array.isArray(manifest.links));
+
+const secondsSetting = manifest.settings.find(setting => setting.key === "seconds");
+assert.ok(secondsSetting, "race seconds setting exists");
+assert.equal(secondsSetting.default, 150, "Hub default matches authoritative race duration");
