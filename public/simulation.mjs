@@ -281,7 +281,7 @@ export function newCar(id) {
     tractorUntil: -Infinity, tractorTarget: null, trailPity: 0,
     draftCharge: 0, drafting: false, draftBoost: 0,
     padCooldownUntil: -Infinity, rampCooldownUntil: -Infinity,
-    featureEventAt: -Infinity, featureKind: null,
+    featureEventAt: -1, featureKind: null,
     driftTime: 0, driftCharge: 0, guardUntil: -Infinity,
     // Per-race award counters; reset with the car, read by computeAwards.
     stats: { hits:0, blocks:0, overtakes:0, boostOvertakes:0, pityPeak:0 },
