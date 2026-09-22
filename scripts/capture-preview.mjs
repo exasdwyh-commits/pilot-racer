@@ -18,7 +18,10 @@ try {
     deviceScaleFactor: 1,
   });
   await display.goto(base + '/display', { waitUntil: 'domcontentloaded' });
-  await display.waitForSelector('#game-surface', { timeout: 15_000 });
+  await display.waitForSelector('#game-surface', {
+    state: 'attached',
+    timeout: 20_000,
+  });
   await display.waitForTimeout(4_000);
 
   const phone = await browser.newPage({
