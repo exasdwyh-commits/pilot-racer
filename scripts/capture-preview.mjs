@@ -37,9 +37,15 @@ try {
     timeout: 120_000,
   });
 
-  // Manual chase is the most useful second acceptance frame: it proves the
-  // selected kart remains readable at speed without depending on a car being
-  // inside one particular fixed station sector at capture time.
+  // GitHub software-WebGL screenshots can take tens of seconds. Restart the
+  // authoritative race before each subsequent frame so a fast AI field cannot
+  // finish while Chromium is reading pixels back.
+  await fetch(base + '/api/start', { method: 'POST' });
+  await display.waitForFunction(
+    () => document.querySelector('#phase')?.textContent === '比赛进行中',
+    null,
+    { timeout: 30_000 },
+  );
   await display.keyboard.press('Digit2');
   await display.waitForTimeout(1_200);
   await display.screenshot({
@@ -48,6 +54,12 @@ try {
     timeout: 120_000,
   });
 
+  await fetch(base + '/api/start', { method: 'POST' });
+  await display.waitForFunction(
+    () => document.querySelector('#phase')?.textContent === '比赛进行中',
+    null,
+    { timeout: 30_000 },
+  );
   await display.keyboard.press('Digit3');
   await display.waitForTimeout(1_200);
   await display.screenshot({
