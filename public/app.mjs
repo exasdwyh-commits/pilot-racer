@@ -7,6 +7,7 @@ const query = new URLSearchParams(location.search);
 const spectator = location.pathname === '/display';
 const hubMode = query.get('hub') === '1';
 const hubName = (query.get('name') || '').trim().slice(0, 12);
+const hubRound = (query.get('round') || '').trim().toUpperCase();
 document.body.classList.toggle('spectator', spectator);
 document.body.classList.toggle('hub-mode', hubMode);
 const surface = $('game-surface');
@@ -2050,13 +2051,56 @@ function connect() {
   ws.onclose = () => {
     if (socket !== ws) return;
     if (userExited) return;
-    $('connection').textContent = '连接断开 · 正在回到比赛';
+    $('connection').textContent = hubMode && hubRound
+      ? '本轮连接已结束 · 正在确认现场状态'
+      : '连接断开 · 正在回到比赛';
     clearControls();
+
+    if (hubMode && hubRound && !spectator) {
+      void handleHubDisconnect();
+      return;
+    }
+
     retry = setTimeout(connect, 1200);
   };
   ws.onerror = () => {
     if (socket === ws && !userExited) $('connection').textContent = '无法连接 · 检查是否处于同一 Wi-Fi';
   };
+}
+
+async function handleHubDisconnect() {
+  const hubApi =
+    location.protocol + '//' + location.hostname + ':3001/api/platform/rounds';
+
+  try {
+    const response = await fetch(hubApi, { cache: 'no-store' });
+    if (response.ok) {
+      const payload = await response.json();
+      const hostedRound = payload.rounds?.find(
+        candidate => candidate.code === hubRound,
+      );
+
+      if (
+        !hostedRound ||
+        ['finished', 'cancelled', 'expired'].includes(hostedRound.status)
+      ) {
+        userExited = true;
+        const returnUrl =
+          location.protocol +
+          '//' +
+          location.hostname +
+          ':5177/join/' +
+          encodeURIComponent(hubRound);
+        location.replace(returnUrl);
+        return;
+      }
+    }
+  } catch {
+    // A transient Hub/API failure should not strand the player. Fall through
+    // to the normal short reconnect loop and check again on the next close.
+  }
+
+  retry = setTimeout(connect, 1200);
 }
 
 if (hubName && !spectator) {
