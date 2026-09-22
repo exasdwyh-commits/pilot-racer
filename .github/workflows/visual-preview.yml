@@ -75,7 +75,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/screenshots/tv-auto-director.png docs/screenshots/tv-free-director.png docs/screenshots/tv-helicopter.png
+          git add docs/screenshots/tv-auto-director.png docs/screenshots/tv-chase-camera.png docs/screenshots/tv-helicopter.png
           if git diff --cached --quiet; then
             echo "Screenshots unchanged"
           else
