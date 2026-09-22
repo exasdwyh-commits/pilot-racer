@@ -3279,24 +3279,14 @@ function setTvCamera(trackId, template, car, renderedS, renderedLane = car.lane)
 }
 
 function setHelicopterCamera(car, renderedS, renderedLane) {
-  // Compose around the actual interpolated kart pose, not a long chord between
-  // two spline samples. Chords cut across the infield on hairpins and used to
-  // put the race outside the aerial frame.
-  const frame = trackFrameAt(renderedS, renderedLane);
-  const yaw = frame.yaw - (car.headingError ?? 0);
-  const fx = Math.sin(yaw), fz = Math.cos(yaw);
-  const rx = Math.cos(yaw), rz = -Math.sin(yaw);
-  targetCamera.set(
-    frame.x - fx * 18 + rx * 11,
-    frame.y + 25,
-    frame.z - fz * 18 + rz * 11,
-  );
-  look.set(
-    frame.x + fx * 3,
-    frame.y + 1.1,
-    frame.z + fz * 3,
-  );
-  camera.fov = 50;
+  // Stay on the authored road spline for the base position, then add height.
+  // A short 7m offset survives hairpins without a tangent/chord cutting across
+  // the infield, while looking directly at the live kart guarantees framing.
+  const high = trackFrameAt(renderedS - 7, renderedLane);
+  const target = trackFrameAt(renderedS, renderedLane);
+  targetCamera.set(high.x, high.y + 24, high.z);
+  look.set(target.x, target.y + 1.0, target.z);
+  camera.fov = 48;
   liveTemplateId = null;
 }
 
@@ -3576,23 +3566,12 @@ function animate(now) {
       setHelicopterCamera(c, g.userData.s, g.userData.lane);
       newCameraKey = `manual:helicopter:${id}`;
     } else {
-      // Manual chase / player third person. Anchor to the interpolated kart
-      // itself so tight hairpins cannot turn the camera/look chord into an
-      // infield shot with the kart outside frame.
-      const worldYaw = p.yaw - heading;
-      const fx = Math.sin(worldYaw), fz = Math.cos(worldYaw);
-      const rx = Math.cos(worldYaw), rz = -Math.sin(worldYaw);
-      targetCamera.set(
-        p.x - fx * 9.5 + rx * 0.8,
-        p.y + 5.0,
-        p.z - fz * 9.5 + rz * 0.8,
-      );
-      look.set(
-        p.x + fx * 7.5,
-        p.y + 1.15,
-        p.z + fz * 7.5,
-      );
-      camera.fov = 60 + Math.round(clamp(c.speed / 48, 0, 1) * 4);
+      // Short spline-relative chase: both camera base and look target remain on
+      // the road surface through hairpins. The kart itself is the focal point.
+      const behind = trackFrameAt(g.userData.s - 4.8, g.userData.lane);
+      targetCamera.set(behind.x, behind.y + 3.8, behind.z);
+      look.set(p.x, p.y + 1.05, p.z);
+      camera.fov = 56 + Math.round(clamp(c.speed / 48, 0, 1) * 4);
       newCameraKey = myId === null ? `manual:chase:${id}` : 'player:chase';
     }
 
