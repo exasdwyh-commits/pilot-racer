@@ -3,8 +3,12 @@ import { trackAt, TRACK_LENGTH, WIDTH, LAPS, COLORS, wrap, clamp, joystickInput,
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const $ = id => document.getElementById(id);
+const query = new URLSearchParams(location.search);
 const spectator = location.pathname === '/display';
+const hubMode = query.get('hub') === '1';
+const hubName = (query.get('name') || '').trim().slice(0, 12);
 document.body.classList.toggle('spectator', spectator);
+document.body.classList.toggle('hub-mode', hubMode);
 const surface = $('game-surface');
 let layout;
 
@@ -45,6 +49,15 @@ $('join-url').textContent = info.join;
 $('join-url').href = info.join;
 const qrImg = $('broadcast')?.querySelector('img');
 if (qrImg) qrImg.src = `/qr.svg?code=${info.code}&t=${Date.now()}`;
+if (hubMode) {
+  const broadcast = $('broadcast');
+  const startRace = $('start-race');
+  const broadcastStart = $('broadcast-start');
+  if (broadcast) broadcast.hidden = true;
+  if (startRace) startRace.hidden = true;
+  if (broadcastStart) broadcastStart.hidden = true;
+  if (!spectator && hubName && $('join')) $('join').hidden = true;
+}
 const code = info.code || 'BAY888';
 const canvas = $('world');
 
@@ -1954,8 +1967,10 @@ let token = '';
 
 try {
   token = sessionStorage.getItem(`pilot:${code}`) || '';
-  $('name').value = localStorage.getItem('pilot:name') || '';
-} catch {}
+  $('name').value = hubName || localStorage.getItem('pilot:name') || '';
+} catch {
+  if (hubName) $('name').value = hubName;
+}
 
 let userExited = false;
 const error = message => { $('error').hidden = false; $('error').textContent = message; };
@@ -2044,7 +2059,11 @@ function connect() {
   };
 }
 
-if (token && !spectator) pending = { name: $('name').value || '车手' };
+if (hubName && !spectator) {
+  pending = { name: hubName };
+} else if (token && !spectator) {
+  pending = { name: $('name').value || '车手' };
+}
 connect();
 
 $('join-form').addEventListener('submit', e => {
@@ -2082,15 +2101,19 @@ const randomBtn = $('random-name-btn');
 const quickNamesEl = $('quick-names');
 
 if (nameInput) {
-  try {
-    const saved = localStorage.getItem('pilot:name');
-    if (saved && saved.trim()) {
-      nameInput.value = saved.trim();
-    } else {
+  if (hubName) {
+    nameInput.value = hubName;
+  } else {
+    try {
+      const saved = localStorage.getItem('pilot:name');
+      if (saved && saved.trim()) {
+        nameInput.value = saved.trim();
+      } else {
+        nameInput.value = getRandomNickname();
+      }
+    } catch {
       nameInput.value = getRandomNickname();
     }
-  } catch {
-    nameInput.value = getRandomNickname();
   }
 }
 
